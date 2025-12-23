@@ -65,18 +65,21 @@ struct SettingsView: View{
         } label: {
             HStack(spacing: 10){
                 Image(systemName: image)
+                    .foregroundStyle(Color("HauzFocus"))
                     .font(.title3)
                     .symbolVariant(.fill)
                     .frame(width: 45, height: 45)
                     .background(.background, in: .circle)
                 
-                VStack(alignment: .leading, spacing: 6){
+                VStack(alignment: .leading, spacing: 3){
                     Text(title)
-                        .fontWeight(.semibold)
+                        .foregroundStyle(Color("HauzFocus"))
+                        .font(.custom("HooverVariable-Bold", size: 20))
                     
                     Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("HauzFocus"))
+                        .font(.custom("HooverVariable-Bold_Regular", size: 14))
+
                         .lineLimit(2)
                 }
             }
