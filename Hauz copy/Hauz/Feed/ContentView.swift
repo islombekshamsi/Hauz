@@ -32,7 +32,7 @@ struct ContentView: View {
                 .toolbarVisibility(.hidden, for: .tabBar)
             }
             Tab.init(value: .profile){
-                Text("Profile")
+                ProfileView()
                     .toolbarVisibility(.hidden, for: .tabBar)
             }
         }
