@@ -1,0 +1,143 @@
+import SwiftUI
+
+struct ProfileView: View {
+    @State private var filters: [String] = ["Sneakers","Style"]
+    @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
+    var body: some View {
+        ZStack{
+            Color("HauzLight").ignoresSafeArea(edges: .all)
+            VStack(spacing: 0){
+                header
+                
+                HauzFilterView(options: filters, selection: $selectedFilter)
+                    .background(
+                        Divider(), alignment: .bottom
+                    )
+                
+                Spacer().frame(height: 20)
+                GlassFilterButton()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(10)
+                
+                
+                
+                Text("Data")
+                
+                Spacer()
+                
+            }
+        }
+    }
+    
+    private var header: some View{
+        HStack(spacing: 0){
+            /*HStack(spacing: 10){
+                Image(systemName: "line.horizontal.3")
+                    .padding(8)
+                    .background(Color.black.opacity(0.001))
+                    .onTapGesture {
+                        
+                    }
+                
+                Image(systemName: "arrow.uturn.left")
+                    .padding(8)
+                    .background(Color.black.opacity(0.001))
+                    .onTapGesture {
+                        
+                    }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+             
+             MARK: -those two are return and menu options at the top
+             */
+            
+            Text("Liked")
+                .font(.custom("HooverVariable-Bold_Regular", size: 45))
+                .bold()
+                .foregroundStyle(Color("HauzLight"))
+                .frame(maxWidth: .infinity, alignment: .center)
+                .background(Color("HauzFocus"))
+            /*Image(systemName: "slider.horizontal.3")
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .background(Color.black.opacity(0.001))
+                .onTapGesture {
+                    
+                }
+             MARK: -this is in case you want filter at the top
+             */
+            
+        }
+        .font(.title2)
+        .fontWeight(.medium)
+        .foregroundStyle(Color.black) // replace with hauz's color
+    }
+}
+
+struct GlassFilterButton: View {
+    @State private var isActive = false
+    
+    var body: some View {
+        ZStack {
+           
+            
+            // Filter button
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isActive.toggle()
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .foregroundStyle(Color("HauzFocus"))
+                        .font(.system(size: 20))
+                    
+                    Text("Filter")
+                        .foregroundStyle(Color("HauzFocus"))
+                        .font(.custom("HooverVariable-Bold_Medium", size: 18))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    ZStack {
+                        // Glass effect background
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(
+                                .ultraThinMaterial
+                            )
+                            .opacity(isActive ? 0.9 : 0.7)
+                        
+                        // Border
+                        RoundedRectangle(cornerRadius: 25)
+                            .strokeBorder(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.6),
+                                        Color.white.opacity(0.2)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
+                        
+                        // Inner glow when active
+                        if isActive {
+                            RoundedRectangle(cornerRadius: 25)
+                                .fill(Color.white.opacity(0.1))
+                        }
+                    }
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+                .scaleEffect(isActive ? 0.95 : 1.0)
+            }
+        }
+    }
+}
+
+
+
+#Preview {
+    ProfileView()
+}
