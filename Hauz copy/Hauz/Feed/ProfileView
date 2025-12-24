@@ -1,3 +1,10 @@
+//
+//  ProfileView.swift
+//  Hauz
+//
+//  Created by Islom Shamsiev on 2025/12/24.
+//
+
 import SwiftUI
 
 struct ProfileView: View {
@@ -18,11 +25,6 @@ struct ProfileView: View {
                 GlassFilterButton()
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(10)
-                
-                
-                
-                Text("Data")
-                
                 Spacer()
                 
             }
@@ -75,26 +77,78 @@ struct ProfileView: View {
 }
 
 struct GlassFilterButton: View {
-    @State private var isActive = false
+    @State private var isExpanded = false
     
     var body: some View {
-        ZStack {
-           
+        ExpandableFilterMenu(isExpanded: $isExpanded)
+    }
+}
+
+struct ExpandableFilterMenu: View {
+    @Binding var isExpanded: Bool
+    @State private var selectedFilter: FilterType?
+    
+    enum FilterType {
+        case alphabetical, priceLowToHigh, priceHighToLow
+    }
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Filter options (appear when expanded)
+            if isExpanded {
+                HStack(spacing: 12) {
+                    FilterCircle(
+                        icon: "characters.uppercase",
+                        isSelected: selectedFilter == .alphabetical
+                    ) {
+                        selectedFilter = .alphabetical
+                    }
+                    
+                    FilterCircle(
+                        icon: "chart.bar.xaxis.ascending",
+                        isSelected: selectedFilter == .priceLowToHigh
+                    ) {
+                        selectedFilter = .priceLowToHigh
+                    }
+                    
+                    FilterCircle(
+                        icon: "chart.bar.xaxis.descending",
+                        isSelected: selectedFilter == .priceHighToLow
+                    ) {
+                        selectedFilter = .priceHighToLow
+                    }
+                }
+                .padding(.horizontal, 16)
+                .transition(.asymmetric(
+                    insertion: .scale.combined(with: .opacity),
+                    removal: .scale.combined(with: .opacity)
+                ))
+            }
             
-            // Filter button
+            // Main filter button
             Button(action: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isActive.toggle()
+                withAnimation(.bouncy(duration: 0.75, extraBounce: 0.02)) {
+                    isExpanded.toggle()
                 }
             }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(Color("HauzFocus"))
-                        .font(.system(size: 20))
-                    
-                    Text("Filter")
-                        .foregroundStyle(Color("HauzFocus"))
-                        .font(.custom("HooverVariable-Bold_Medium", size: 18))
+                    if isExpanded {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color("HauzFocus"))
+                            .rotationEffect(.degrees(90))
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color("HauzFocus"))
+                            .transition(.scale.combined(with: .opacity))
+                        
+                        Text("Filter")
+                            .font(.custom("HooverVariable-Bold_Medium", size: 18))
+                            .foregroundStyle(Color("HauzFocus"))
+                            .transition(.opacity)
+                    }
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 20)
@@ -103,10 +157,7 @@ struct GlassFilterButton: View {
                     ZStack {
                         // Glass effect background
                         RoundedRectangle(cornerRadius: 25)
-                            .fill(
-                                .ultraThinMaterial
-                            )
-                            .opacity(isActive ? 0.9 : 0.7)
+                            .fill(.ultraThinMaterial)
                         
                         // Border
                         RoundedRectangle(cornerRadius: 25)
@@ -121,17 +172,63 @@ struct GlassFilterButton: View {
                                 ),
                                 lineWidth: 1.5
                             )
-                        
-                        // Inner glow when active
-                        if isActive {
-                            RoundedRectangle(cornerRadius: 25)
-                                .fill(Color.white.opacity(0.1))
-                        }
                     }
                 )
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
-                .scaleEffect(isActive ? 0.95 : 1.0)
             }
+        }
+    }
+}
+
+struct FilterCircle: View {
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                action()
+            }
+        }) {
+            ZStack {
+                // Glass effect background
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(isSelected ? 0.8 : 0.6),
+                                        Color.white.opacity(isSelected ? 0.4 : 0.2)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: isSelected ? 2 : 1.5
+                            )
+                            
+                        
+                        if isSelected {
+                            Circle()
+                                .fill(Color("HauzFocus"))
+                        }
+                    }
+                if isSelected{
+                    Image(systemName: icon)
+                        .foregroundStyle(Color.white)
+                        .font(.system(size: 16, weight: .semibold))
+                } else{
+                    Image(systemName: icon)
+                        .foregroundStyle(Color("HauzFocus"))
+                        .font(.system(size: 16, weight: .semibold))
+                }
+            
+            }
+            .frame(width: 55, height: 55)
+            .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+            .scaleEffect(isSelected ? 1.05 : 1.0)
         }
     }
 }
