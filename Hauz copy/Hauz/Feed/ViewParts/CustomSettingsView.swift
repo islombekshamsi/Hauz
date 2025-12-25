@@ -1,4 +1,4 @@
-import SwiftUI
+/*import SwiftUI
 
 struct SettingsView: View{
     @State private var progress: CGFloat = 0
@@ -197,4 +197,4 @@ struct ExpandableGlassMenu<Content: View, Label: View>: View, Animatable{
 
 #Preview{
     SettingsView()
-}
+}*/
