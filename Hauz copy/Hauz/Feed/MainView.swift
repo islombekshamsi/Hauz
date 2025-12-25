@@ -86,6 +86,7 @@ struct CardData: Identifiable {
 }
 
 // MARK: - Individual Card View
+// MARK: - Individual Card View
 struct CardView: View {
     let card: CardData
     let onRemove: () -> Void
@@ -115,33 +116,33 @@ struct CardView: View {
     
     var body: some View {
         ZStack {
-            // Main card container with subtle shadow
-            RoundedRectangle(cornerRadius: 32)
-                .fill(Color.white)
-                .shadow(
-                    color: Color.black.opacity(0.08),
-                    radius: 30, // Fixed radius as isPressed is removed
-                    x: 0,
-                    y: 20 // Fixed y-offset as isPressed is removed
-                )
-            
+            // Content container
             VStack(spacing: 0) {
                 // Image section - takes up most of the card
                 imageSection
-                    .frame(height: 320) // Reduced image section height
+                    .frame(height: 320)
                 
                 // Info section - compact bottom area
                 infoSection
                     .frame(height: 180)
             }
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 32))
+            .overlay(
+                RoundedRectangle(cornerRadius: 32)
+                    .stroke(Color("HauzFocus"), lineWidth: 3)
+            )
+            .shadow(
+                color: Color.black.opacity(0.08),
+                radius: 30,
+                x: 0,
+                y: 20
+            )
             
             // LIKE ICON (Green checkmark) - appears when swiping right
-            // CUSTOMIZE: Change icon, color, size, or position here
             Image(systemName: "cart")
                 .font(.system(size: 100))
                 .foregroundColor(.blue)
-                // Opacity increases as you swipe right (offset.width / 100)
-                // CUSTOMIZE: Change divisor (100) to make icon appear faster/slower
                 .opacity(offset.width > 0 ? Double(offset.width / 100) : 0)
                 .rotationEffect(.degrees(-25))
                 .padding(.leading, 40)
@@ -149,56 +150,38 @@ struct CardView: View {
                 .padding(.top, 60)
             
             // NOPE ICON (Red X) - appears when swiping left
-            // CUSTOMIZE: Change icon, color, size, or position here
             Image(systemName: "trash")
                 .font(.system(size: 100))
                 .foregroundColor(.red)
-                // Opacity increases as you swipe left (-offset.width / 100)
-                // CUSTOMIZE: Change divisor (100) to make icon appear faster/slower
                 .opacity(offset.width < 0 ? Double(-offset.width / 100) : 0)
                 .rotationEffect(.degrees(25))
                 .padding(.trailing, 40)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .padding(.top, 60)
         }
-        .frame(width: 360, height: 500) // Increased overall card height further
-        // Apply the drag offset to move the card
+        .frame(width: 360, height: 500)
         .offset(x: offset.width, y: offset.height)
-        // Rotate the card based on horizontal drag
         .rotationEffect(.degrees(rotation))
-        // Drag gesture handling
         .gesture(
             DragGesture()
                 .onChanged { gesture in
-                    // Update position as user drags
                     offset = gesture.translation
-                    // Calculate rotation: divide by 20 to make rotation subtle
-                    // CUSTOMIZE: Change divisor to make rotation more/less pronounced
                     rotation = Double(gesture.translation.width / 20)
                 }
                 .onEnded { gesture in
-                    // Swipe threshold: how far user needs to drag to trigger swipe
-                    // CUSTOMIZE: Increase to require longer swipe, decrease for easier swipe
                     let swipeThreshold: CGFloat = 100
                     
-                    // Check if user swiped past the threshold
                     if abs(gesture.translation.width) > swipeThreshold {
-                        // Card was swiped far enough - send it flying off screen
                         let direction: CGFloat = gesture.translation.width > 0 ? 1 : -1
                         withAnimation(.spring()) {
-                            // Animate card flying off screen (500 points off)
-                            // CUSTOMIZE: Change 500 to make card fly further/less
                             offset = CGSize(width: direction * 500, height: gesture.translation.height)
                             rotation = Double(direction * 20)
                         }
                         
-                        // Remove card after animation completes (0.3 seconds)
-                        // CUSTOMIZE: Match this delay with animation duration if you change it
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             onRemove()
                         }
                     } else {
-                        // Card wasn't swiped far enough - return to center
                         withAnimation(.spring()) {
                             offset = .zero
                             rotation = 0
@@ -209,100 +192,83 @@ struct CardView: View {
     }
     
     // MARK: - Image Section
-    // Clean image display with subtle gradient background that blends seamlessly
     private var imageSection: some View {
         ZStack {
-            // CUSTOMIZE: Subtle gradient background that creates depth
             LinearGradient(
-                   colors: [
-                       Color(red: 251/255, green: 252/255, blue: 255/255),   // FBFCFF
-                       Color(red: 208/255, green: 204/255, blue: 208/255)
-                           .opacity(0.35)                                   // D0CCD0
-                   ],
-                   startPoint: .top,
-                   endPoint: .bottomTrailing
-               )
-
-               // Top-right soft accent blob
-               Circle()
-                   .fill(
-                       RadialGradient(
-                           colors: [
-                               Color(red: 96/255, green: 88/255, blue: 86/255)
-                                   .opacity(0.10),                           // 605856
-                               Color.clear
-                           ],
-                           center: .center,
-                           startRadius: 20,
-                           endRadius: 140
-                       )
-                   )
-                   .frame(width: 220, height: 400)
-                   .blur(radius: 50)
-                   .offset(x: 70, y: -100)
-
-               // Bottom-left blob for balance
-               Circle()
-                   .fill(
-                       RadialGradient(
-                           colors: [
-                               Color(red: 208/255, green: 204/255, blue: 208/255)
-                                   .opacity(0.20),                           // D0CCD0
-                               Color.clear
-                           ],
-                           center: .center,
-                           startRadius: 20,
-                           endRadius: 120
-                       )
-                   )
-                   .frame(width: 200, height: 200)
-                   .blur(radius: 45)
-                   .offset(x: -60, y: 80)
-
-               // Center glow for depth
-               Ellipse()
-                   .fill(
-                       RadialGradient(
-                           colors: [
-                               Color(red: 96/255, green: 88/255, blue: 86/255)
-                                   .opacity(0.08),                           // 605856
-                               Color.clear
-                           ],
-                           center: .center,
-                           startRadius: 30,
-                           endRadius: 150
-                       )
-                   )
-                   .frame(width: 280, height: 120)
-                   .blur(radius: 40)
-                   .offset(y: 20)
+                colors: [
+                    Color(red: 251/255, green: 252/255, blue: 255/255),
+                    Color(red: 208/255, green: 204/255, blue: 208/255)
+                        .opacity(0.35)
+                ],
+                startPoint: .top,
+                endPoint: .bottomTrailing
+            )
             
-            // CUSTOMIZE: Main product image - STRAIGHT, NO ROTATION
-            // Image is centered and blends naturally with the background
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 96/255, green: 88/255, blue: 86/255)
+                                .opacity(0.10),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 20,
+                        endRadius: 140
+                    )
+                )
+                .frame(width: 220, height: 400)
+                .blur(radius: 50)
+                .offset(x: 70, y: -100)
+            
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 208/255, green: 204/255, blue: 208/255)
+                                .opacity(0.20),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 20,
+                        endRadius: 120
+                    )
+                )
+                .frame(width: 200, height: 200)
+                .blur(radius: 45)
+                .offset(x: -60, y: 80)
+            
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 96/255, green: 88/255, blue: 86/255)
+                                .opacity(0.08),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 30,
+                        endRadius: 150
+                    )
+                )
+                .frame(width: 280, height: 120)
+                .blur(radius: 40)
+                .offset(y: 20)
+            
             Image(card.shoeImage)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 260, height: 250) // Increased image height further
+                .frame(width: 260, height: 250)
                 .padding(10)
-                // REMOVED: .rotationEffect(.degrees(-15)) - Image is now straight
-                .offset(y: 0) // Adjusted vertical offset
-      
-                .background(Color.white) // Removed explicit background
-                 .clipShape(RoundedRectangle(cornerRadius: 25)) // Removed explicit clip shape
+                .offset(y: 0)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 25))
         }
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 32,
-                topTrailingRadius: 32
-            )
-        )
     }
     
     // MARK: - Info Section
-    // Compact information display at bottom
     private var infoSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // CUSTOMIZE: Product name and price row
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(card.shoeName)
@@ -317,15 +283,12 @@ struct CardView: View {
                 
                 Spacer()
                 
-                // CUSTOMIZE: Price badge
                 Text(formattedPrice)
                     .font(.custom("HooverVariable-Bold", size: 28))
                     .foregroundColor(Color("HauzFocus"))
             }
             
-            // CUSTOMIZE: Stats row with trend indicator
             HStack(spacing: 12) {
-                // Price trend badge
                 HStack(spacing: 6) {
                     Image(systemName: trendIcon)
                         .font(.system(size: 13, weight: .bold))
@@ -342,10 +305,7 @@ struct CardView: View {
                 
                 Spacer()
                 
-                // CUSTOMIZE: Action button - minimal design
-                Button(action: {
-                    // Action: View on StockX or similar
-                }) {
+                Button(action: {}) {
                     HStack(spacing: 6) {
                         Text("View")
                             .font(.custom("HooverVariable-Bold_Regular", size: 14))
@@ -357,9 +317,7 @@ struct CardView: View {
                     .padding(.vertical, 10)
                     .background(
                         Capsule()
-                            .fill(
-                                Color("HauzFocus")
-                            )
+                            .fill(Color("HauzFocus"))
                     )
                     .shadow(
                         color: Color.black.opacity(0.2),
@@ -374,14 +332,7 @@ struct CardView: View {
         .padding(.top, 24)
         .padding(.bottom, 20)
         .background(Color.white)
-        .clipShape(
-            UnevenRoundedRectangle(
-                bottomLeadingRadius: 32,
-                bottomTrailingRadius: 32
-            )
-        )
     }
-
 } // Corrected closing brace for CardView
 
 // MARK: - Card Stacking Extension
