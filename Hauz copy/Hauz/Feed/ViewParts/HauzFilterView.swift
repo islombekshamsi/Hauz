@@ -22,14 +22,14 @@ struct HauzFilterView: View{
                     }
                 .padding(.top, 8)
                 .background(Color.black.opacity(0.001))
-                .foregroundStyle(selection == option ? Color("HauzLight") : Color("HauzBg").opacity(0.3))
+                .foregroundStyle(selection == option ? Color("HauzFocus") : Color("HauzBg"))
                 .onTapGesture {
                     selection = option
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .background(Color("HauzFocus"))
+        .background(Color("HauzLight"))
         .animation(.smooth, value: selection)
     }
 }
