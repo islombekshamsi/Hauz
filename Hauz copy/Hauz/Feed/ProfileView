@@ -23,28 +23,30 @@ struct ProfileView: View {
                 
                 Spacer().frame(height: 20)
                 
-                GlassFilterButton(
-                    onAlphabeticalSort: applyAlphabeticalSort,
-                    onPriceLowToHigh: applyPriceLowToHighSort,
-                    onPriceHighToLow: applyPriceHighToLowSort
-                )
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.horizontal, 10)
-                
-                Spacer().frame(height: 10)
-                
-                // Scrollable card list
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        ForEach(likedShoes) { shoe in
-                            FlippableShoeCard(card: shoe)
+                ZStack(alignment: .topTrailing) {
+                    // Scrollable card list
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 20) {
+                            // Add top padding to prevent cards from going under filter button
+                            Spacer().frame(height: 60)
+                            
+                            ForEach(likedShoes) { shoe in
+                                FlippableShoeCard(card: shoe)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 20)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
-                    .padding(.top, 5)
+                    
+                    // Floating filter button on top
+                    GlassFilterButton(
+                        onAlphabeticalSort: applyAlphabeticalSort,
+                        onPriceLowToHigh: applyPriceLowToHighSort,
+                        onPriceHighToLow: applyPriceHighToLowSort
+                    )
+                    .padding(.top, 16)
+                    .padding(.trailing, 10)
                 }
-                
             }
         }
     }
@@ -54,9 +56,9 @@ struct ProfileView: View {
             Text("Liked")
                 .font(.custom("HooverVariable-Bold_Regular", size: 45))
                 .bold()
-                .foregroundStyle(Color("HauzLight"))
+                .foregroundStyle(Color("HauzFocus"))
                 .frame(maxWidth: .infinity, alignment: .center)
-                .background(Color("HauzFocus"))
+                .background(Color("HauzLight"))
         }
         .font(.title2)
         .fontWeight(.medium)
