@@ -1,15 +1,15 @@
-//
-//  ProfileView.swift
-//  Hauz
-//
-//  Created by Islom Shamsiev on 2025/12/24.
-//
-
 import SwiftUI
 
 struct ProfileView: View {
     @State private var filters: [String] = ["Sneakers","Style"]
     @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
+    
+    // Sample data - replace with your actual data source
+    @State private var likedShoes = [
+        CardData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9),
+        CardData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5),
+    ]
+    
     var body: some View {
         ZStack{
             Color("HauzLight").ignoresSafeArea(edges: .all)
@@ -22,10 +22,28 @@ struct ProfileView: View {
                     )
                 
                 Spacer().frame(height: 20)
-                GlassFilterButton()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(10)
-                Spacer()
+                
+                GlassFilterButton(
+                    onAlphabeticalSort: applyAlphabeticalSort,
+                    onPriceLowToHigh: applyPriceLowToHighSort,
+                    onPriceHighToLow: applyPriceHighToLowSort
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 10)
+                
+                Spacer().frame(height: 10)
+                
+                // Scrollable card list
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        ForEach(likedShoes) { shoe in
+                            FlippableShoeCard(card: shoe)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
+                    .padding(.top, 5)
+                }
                 
             }
         }
@@ -33,54 +51,143 @@ struct ProfileView: View {
     
     private var header: some View{
         HStack(spacing: 0){
-            /*HStack(spacing: 10){
-                Image(systemName: "line.horizontal.3")
-                    .padding(8)
-                    .background(Color.black.opacity(0.001))
-                    .onTapGesture {
-                        
-                    }
-                
-                Image(systemName: "arrow.uturn.left")
-                    .padding(8)
-                    .background(Color.black.opacity(0.001))
-                    .onTapGesture {
-                        
-                    }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-             
-             MARK: -those two are return and menu options at the top
-             */
-            
             Text("Liked")
                 .font(.custom("HooverVariable-Bold_Regular", size: 45))
                 .bold()
                 .foregroundStyle(Color("HauzLight"))
                 .frame(maxWidth: .infinity, alignment: .center)
                 .background(Color("HauzFocus"))
-            /*Image(systemName: "slider.horizontal.3")
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .background(Color.black.opacity(0.001))
-                .onTapGesture {
-                    
-                }
-             MARK: -this is in case you want filter at the top
-             */
-            
         }
         .font(.title2)
         .fontWeight(.medium)
-        .foregroundStyle(Color.black) // replace with hauz's color
+        .foregroundStyle(Color.black)
+    }
+    
+    // MARK: - Filter Functions
+    
+    private func applyAlphabeticalSort() {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            likedShoes.sort { $0.shoeName < $1.shoeName }
+        }
+        print("Alphabetical sort applied")
+    }
+    
+    private func applyPriceLowToHighSort() {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            likedShoes.sort { $0.price < $1.price }
+        }
+        print("Price Low to High sort applied")
+    }
+    
+    private func applyPriceHighToLowSort() {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            likedShoes.sort { $0.price > $1.price }
+        }
+        print("Price High to Low sort applied")
     }
 }
 
+// MARK: - Flippable Shoe Card
+struct FlippableShoeCard: View {
+    let card: CardData
+    
+    var body: some View {
+        ZStack {
+            // Pure white background
+            Color.white
+            
+            // Main content
+            VStack(spacing: 0) {
+                // MASSIVE shoe section with price floating on top
+                ZStack(alignment: .topTrailing) {
+                    Color.white
+                    
+                    // Giant shoe image - the absolute star
+                    Image(card.shoeImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 320, height: 200)
+                        .padding(.vertical, 30)
+                        .padding(.horizontal, 20)
+                    
+                    // Floating price badge - top right, clean and bold
+                    Text("$\(Int(card.price))")
+                        .font(.custom("HooverVariable-Bold", size: 28))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(Color("HauzFocus"))
+                                .shadow(
+                                    color: Color.black.opacity(0.15),
+                                    radius: 12,
+                                    x: 0,
+                                    y: 4
+                                )
+                        )
+                        .padding(.top, 20)
+                        .padding(.trailing, 20)
+                }
+                .frame(height: 260)
+                
+                // Sleek info bar
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(card.shoeName)
+                            .font(.custom("HooverVariable-Bold_Medium", size: 17))
+                            .foregroundColor(Color("HauzFocus"))
+                            .lineLimit(1)
+                        
+                        Text(card.brandName)
+                            .font(.custom("HooverVariable-Bold_Regular", size: 13))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    // View button
+                    Button(action: {}) {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color("HauzFocus"))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .background(Color.white)
+            }
+        }
+        .frame(width: 360, height: 320)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color("HauzFocus"), lineWidth: 3)
+        )
+        .shadow(
+            color: Color.black.opacity(0.08),
+            radius: 20,
+            x: 0,
+            y: 10
+        )
+    }
+}
+
+// MARK: - Glass Filter Button
 struct GlassFilterButton: View {
     @State private var isExpanded = false
     
+    var onAlphabeticalSort: () -> Void
+    var onPriceLowToHigh: () -> Void
+    var onPriceHighToLow: () -> Void
+    
     var body: some View {
-        ExpandableFilterMenu(isExpanded: $isExpanded)
+        ExpandableFilterMenu(
+            isExpanded: $isExpanded,
+            onAlphabeticalSort: onAlphabeticalSort,
+            onPriceLowToHigh: onPriceLowToHigh,
+            onPriceHighToLow: onPriceHighToLow
+        )
     }
 }
 
@@ -88,13 +195,16 @@ struct ExpandableFilterMenu: View {
     @Binding var isExpanded: Bool
     @State private var selectedFilter: FilterType?
     
+    var onAlphabeticalSort: () -> Void
+    var onPriceLowToHigh: () -> Void
+    var onPriceHighToLow: () -> Void
+    
     enum FilterType {
         case alphabetical, priceLowToHigh, priceHighToLow
     }
     
     var body: some View {
         HStack(spacing: 0) {
-            // Filter options (appear when expanded)
             if isExpanded {
                 HStack(spacing: 12) {
                     FilterCircle(
@@ -102,6 +212,7 @@ struct ExpandableFilterMenu: View {
                         isSelected: selectedFilter == .alphabetical
                     ) {
                         selectedFilter = .alphabetical
+                        onAlphabeticalSort()
                     }
                     
                     FilterCircle(
@@ -109,6 +220,7 @@ struct ExpandableFilterMenu: View {
                         isSelected: selectedFilter == .priceLowToHigh
                     ) {
                         selectedFilter = .priceLowToHigh
+                        onPriceLowToHigh()
                     }
                     
                     FilterCircle(
@@ -116,6 +228,7 @@ struct ExpandableFilterMenu: View {
                         isSelected: selectedFilter == .priceHighToLow
                     ) {
                         selectedFilter = .priceHighToLow
+                        onPriceHighToLow()
                     }
                 }
                 .padding(.horizontal, 16)
@@ -125,7 +238,6 @@ struct ExpandableFilterMenu: View {
                 ))
             }
             
-            // Main filter button
             Button(action: {
                 withAnimation(.bouncy(duration: 0.75, extraBounce: 0.02)) {
                     isExpanded.toggle()
@@ -155,11 +267,9 @@ struct ExpandableFilterMenu: View {
                 .padding(.vertical, 12)
                 .background(
                     ZStack {
-                        // Glass effect background
                         RoundedRectangle(cornerRadius: 25)
                             .fill(.ultraThinMaterial)
                         
-                        // Border
                         RoundedRectangle(cornerRadius: 25)
                             .strokeBorder(
                                 LinearGradient(
@@ -192,7 +302,6 @@ struct FilterCircle: View {
             }
         }) {
             ZStack {
-                // Glass effect background
                 Circle()
                     .fill(.ultraThinMaterial)
                     .overlay {
@@ -208,7 +317,6 @@ struct FilterCircle: View {
                                 ),
                                 lineWidth: isSelected ? 2 : 1.5
                             )
-                            
                         
                         if isSelected {
                             Circle()
@@ -224,7 +332,6 @@ struct FilterCircle: View {
                         .foregroundStyle(Color("HauzFocus"))
                         .font(.system(size: 16, weight: .semibold))
                 }
-            
             }
             .frame(width: 55, height: 55)
             .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
@@ -232,8 +339,6 @@ struct FilterCircle: View {
         }
     }
 }
-
-
 
 #Preview {
     ProfileView()
