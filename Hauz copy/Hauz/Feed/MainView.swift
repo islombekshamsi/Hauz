@@ -24,25 +24,50 @@ struct MainView: View {
                 
                 Spacer().frame(height: 5)
                 
+                if selectedFilter == "Sneakers" {
+                    SneakersView()
+                } else {
+                    StyleView()
+                }
+                
                 // Card stack container
-                ZStack {
-                    ForEach(cards) { card in
-                        CardView(card: card) {
-                            removeCard(card)
-                        }
-                        .stacked(at: indexOf(card), in: cards.count)
-                    }
-                }
-                .frame(height: 620)
                 
-                Spacer()
-                
-                if cards.isEmpty {
-                    Text("Ran out of shoes. Wait a minute!")
-                }
                 
                 Spacer()
             }
+        }
+    }
+    
+    func indexOf(_ card: CardData) -> Int {
+        cards.firstIndex(where: { $0.id == card.id }) ?? 0
+    }
+    
+    func removeCard(_ card: CardData) {
+        withAnimation {
+            cards.removeAll { $0.id == card.id }
+        }
+    }
+}
+
+struct SneakersView: View {
+    @State private var cards = [
+        CardData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9),
+        CardData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5),
+    ]
+    var body: some View {
+        ZStack {
+            ForEach(cards) { card in
+                CardView(card: card) {
+                    removeCard(card)
+                }
+                .stacked(at: indexOf(card), in: cards.count)
+            }
+        }
+        .frame(height: 620)
+        
+        
+        if cards.isEmpty {
+            Text("Ran out of shoes. Wait a minute!")
         }
     }
     
@@ -275,6 +300,99 @@ private var header: some View {
     .font(.title2)
     .fontWeight(.medium)
     .foregroundStyle(Color.black)
+}
+
+struct StyleView: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color("HauzLight")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 30) {
+                // Animated icon
+                ZStack {
+                    // Outer rotating circle
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color("HauzFocus").opacity(0.3),
+                                    Color("HauzFocus").opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 3
+                        )
+                        .frame(width: 140, height: 140)
+                        .rotationEffect(.degrees(isAnimating ? 360 : 0))
+                        .animation(
+                            .linear(duration: 8)
+                                .repeatForever(autoreverses: false),
+                            value: isAnimating
+                        )
+                    
+                    // Inner pulsing circle
+                    Circle()
+                        .fill(Color("HauzFocus").opacity(0.08))
+                        .frame(width: 120, height: 120)
+                        .scaleEffect(isAnimating ? 1.1 : 0.9)
+                        .animation(
+                            .easeInOut(duration: 2)
+                                .repeatForever(autoreverses: true),
+                            value: isAnimating
+                        )
+                    
+                    // Main icon
+                    Image(systemName: "tshirt.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(Color("HauzFocus"))
+                }
+                .padding(.bottom, 10)
+                
+                // Text content
+                VStack(spacing: 12) {
+                    Text("Coming Soon")
+                        .font(.custom("HooverVariable-Bold", size: 32))
+                        .foregroundColor(Color("HauzFocus"))
+                    
+                    Text("We're working on something\namazing for you!")
+                        .font(.custom("HooverVariable-Bold_Regular", size: 16))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                }
+                
+                // Decorative badge
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Style Feed")
+                        .font(.custom("HooverVariable-Bold_Regular", size: 14))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundColor(Color("HauzFocus"))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(Color("HauzFocus").opacity(0.1))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color("HauzFocus").opacity(0.3), lineWidth: 1.5)
+                        )
+                )
+            }
+            .padding(.horizontal, 40)
+        }
+        .onAppear {
+            isAnimating = true
+        }
+    }
 }
 
 #Preview {
