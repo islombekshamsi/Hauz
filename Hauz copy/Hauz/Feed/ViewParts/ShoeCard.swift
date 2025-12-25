@@ -1,4 +1,4 @@
-import SwiftUI
+/*import SwiftUI
 
 struct FlippableShoeCard: View {
     let card: CardData
@@ -116,3 +116,4 @@ struct FlippableShoeCard: View {
     }
     .background(Color("HauzLight"))
 }
+*/
