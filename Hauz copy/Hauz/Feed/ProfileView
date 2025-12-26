@@ -5,14 +5,23 @@ struct ProfileView: View {
     @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
     
     // Sample data - replace with your actual data source
-    @State private var likedShoes = [
-        CardData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9),
-        CardData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5),
+    @State private var likedShoes: [LikedShoeData] = [
+        LikedShoeData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9, isPinned: false),
+        LikedShoeData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5, isPinned: false),
     ]
+    
+    // Computed properties for pinned and unpinned shoes
+    private var pinnedShoes: [LikedShoeData] {
+        likedShoes.filter { $0.isPinned }
+    }
+    
+    private var unpinnedShoes: [LikedShoeData] {
+        likedShoes.filter { !$0.isPinned }
+    }
     
     var body: some View {
         ZStack{
-            Color("HauzLight").ignoresSafeArea(edges: .all)
+            Color("HauzBg").ignoresSafeArea(edges: .all)
             VStack(spacing: 0){
                 header
                 
@@ -30,8 +39,18 @@ struct ProfileView: View {
                             // Add top padding to prevent cards from going under filter button
                             Spacer().frame(height: 60)
                             
-                            ForEach(likedShoes) { shoe in
-                                FlippableShoeCard(card: shoe)
+                            // Show pinned shoes first
+                            ForEach(pinnedShoes) { shoe in
+                                FlippableShoeCard(card: shoe, onTogglePin: {
+                                    togglePin(for: shoe)
+                                })
+                            }
+                            
+                            // Then show unpinned shoes
+                            ForEach(unpinnedShoes) { shoe in
+                                FlippableShoeCard(card: shoe, onTogglePin: {
+                                    togglePin(for: shoe)
+                                })
                             }
                         }
                         .padding(.horizontal, 16)
@@ -54,44 +73,72 @@ struct ProfileView: View {
     private var header: some View{
         HStack(spacing: 0){
             Text("Liked")
-                .font(.custom("HooverVariable-Bold_Regular", size: 45))
+                .font(.custom("bernoru-blackultraexpanded", size: 40))
                 .bold()
                 .foregroundStyle(Color("HauzFocus"))
                 .frame(maxWidth: .infinity, alignment: .center)
-                .background(Color("HauzLight"))
+                .background(Color("HauzBg"))
         }
         .font(.title2)
         .fontWeight(.medium)
         .foregroundStyle(Color.black)
     }
     
-    // MARK: - Filter Functions
+    // Toggle pin status
+    private func togglePin(for card: LikedShoeData) {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            if let index = likedShoes.firstIndex(where: { $0.id == card.id }) {
+                likedShoes[index].isPinned.toggle()
+            }
+        }
+    }
+    
+    // MARK: - Filter Functions (only apply to unpinned shoes)
     
     private func applyAlphabeticalSort() {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-            likedShoes.sort { $0.shoeName < $1.shoeName }
+            let pinned = likedShoes.filter { $0.isPinned }
+            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { $0.shoeName < $1.shoeName }
+            likedShoes = pinned + unpinned
         }
         print("Alphabetical sort applied")
     }
     
     private func applyPriceLowToHighSort() {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-            likedShoes.sort { $0.price < $1.price }
+            let pinned = likedShoes.filter { $0.isPinned }
+            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { $0.price < $1.price }
+            likedShoes = pinned + unpinned
         }
         print("Price Low to High sort applied")
     }
     
     private func applyPriceHighToLowSort() {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-            likedShoes.sort { $0.price > $1.price }
+            let pinned = likedShoes.filter { $0.isPinned }
+            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { $0.price > $1.price }
+            likedShoes = pinned + unpinned
         }
         print("Price High to Low sort applied")
     }
 }
 
+// MARK: - Liked Shoe Data Model (mutable version for ProfileView)
+struct LikedShoeData: Identifiable {
+    let id: Int
+    let shoeName: String
+    let brandName: String
+    let price: Double
+    let shoeImage: String
+    var priceTrendIsUp: Bool
+    var priceChangePercentage: Double
+    var isPinned: Bool
+}
+
 // MARK: - Flippable Shoe Card
 struct FlippableShoeCard: View {
-    let card: CardData
+    let card: LikedShoeData
+    let onTogglePin: () -> Void
     
     var body: some View {
         ZStack {
@@ -112,15 +159,31 @@ struct FlippableShoeCard: View {
                         .padding(.vertical, 30)
                         .padding(.horizontal, 20)
                     
+                    // Pin button - top left
+                    Button(action: onTogglePin) {
+                        Image(systemName: card.isPinned ? "star.fill" : "star")
+                            .font(.system(size: 22))
+                            .foregroundColor(card.isPinned ? Color("HauzBg") : Color("HauzBg"))
+                            .padding(12)
+                            .background(
+                                Circle()
+                                    .fill(Color.white)
+                                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+                            )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, 20)
+                    .padding(.leading, 10)
+                    
                     // Floating price badge - top right, clean and bold
                     Text("$\(Int(card.price))")
-                        .font(.custom("HooverVariable-Bold", size: 28))
+                        .font(.custom("bernoru-blackultraexpanded", size: 20))
                         .foregroundColor(.white)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
                         .background(
                             Capsule()
-                                .fill(Color("HauzFocus"))
+                                .fill(Color("HauzBg"))
                                 .shadow(
                                     color: Color.black.opacity(0.15),
                                     radius: 12,
@@ -137,12 +200,12 @@ struct FlippableShoeCard: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.shoeName)
-                            .font(.custom("HooverVariable-Bold_Medium", size: 17))
-                            .foregroundColor(Color("HauzFocus"))
+                            .font(.custom("bernoru-blackultraexpanded", size: 15))
+                            .foregroundColor(Color("HauzBg"))
                             .lineLimit(1)
                         
                         Text(card.brandName)
-                            .font(.custom("HooverVariable-Bold_Regular", size: 13))
+                            .font(.custom("bernoru-blackultraexpanded", size: 10))
                             .foregroundColor(.secondary)
                     }
                     
@@ -152,7 +215,7 @@ struct FlippableShoeCard: View {
                     Button(action: {}) {
                         Image(systemName: "arrow.right.circle.fill")
                             .font(.system(size: 36))
-                            .foregroundColor(Color("HauzFocus"))
+                            .foregroundColor(Color("HauzBg"))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -161,9 +224,9 @@ struct FlippableShoeCard: View {
             }
         }
         .frame(width: 360, height: 320)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
         .overlay(
-            RoundedRectangle(cornerRadius: 24)
+            RoundedRectangle(cornerRadius: 5)
                 .stroke(Color("HauzFocus"), lineWidth: 3)
         )
         .shadow(
@@ -254,12 +317,12 @@ struct ExpandableFilterMenu: View {
                             .transition(.scale.combined(with: .opacity))
                     } else {
                         Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 20))
+                            .font(.system(size: 22))
                             .foregroundStyle(Color("HauzFocus"))
                             .transition(.scale.combined(with: .opacity))
                         
                         Text("Filter")
-                            .font(.custom("HooverVariable-Bold_Medium", size: 18))
+                            .font(.custom("bernoru-blackultraexpanded", size: 15))
                             .foregroundStyle(Color("HauzFocus"))
                             .transition(.opacity)
                     }
