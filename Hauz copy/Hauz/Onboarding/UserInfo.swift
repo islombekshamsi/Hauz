@@ -88,7 +88,7 @@ struct UserInfo: View {
     
     var body: some View {
         ZStack {
-            Color("HauzLight")
+            Color("HauzBg")
                 .ignoresSafeArea(edges: .all)
             
             VStack(spacing: 0) {
@@ -109,7 +109,7 @@ struct UserInfo: View {
                                 .opacity(showContent ? 1 : 0)
                                 .offset(y: showContent ? 0 : -20)
                             
-                            Text("Please select your gender.")
+                            Text("Which section would you like to shop in?.")
                                 .font(.custom("HooverVariable-Bold_Thin", size: 28))
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.primary)
@@ -145,19 +145,11 @@ struct UserInfo: View {
                             .offset(y: showContent ? 0 : 30)
                             .animation(.easeOut(duration: 0.5).delay(0.2), value: showContent)
                             
-                            GenderSelectionCard(
-                                icon: "person.fill.questionmark",
-                                label: "Prefer not to say",
-                                color: .gray,
-                                isSelected: onboardingState.selectedGender == "Prefer not to say"
-                            ) {
-                                onboardingState.selectGender("Prefer not to say")
-                            }
-                            .opacity(showContent ? 1 : 0)
-                            .offset(y: showContent ? 0 : 30)
-                            .animation(.easeOut(duration: 0.5).delay(0.3), value: showContent)
+                            
                         }
                         .padding(.horizontal, 20)
+                        
+                        Spacer()
                         
                         // Continue button - always visible, disabled when no selection
                         NavigationLink(destination: UserInfo2().environmentObject(onboardingState)) {
@@ -244,7 +236,7 @@ struct GenderSelectionCard: View {
                     .foregroundColor(isSelected ? .primary : .primary.opacity(0.7))
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 140)
+            .frame(height: 180)
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(.ultraThinMaterial)
