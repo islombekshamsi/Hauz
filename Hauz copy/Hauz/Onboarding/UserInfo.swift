@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Supabase
 
 // MARK: - Brand Data Models
 // CUSTOMIZE: Add or remove brands, mark popular ones
@@ -682,6 +683,7 @@ struct OnboardingSucceeded: View {
     @State private var showSuccess = false
     @State private var checkmarkScale: CGFloat = 0
     @State private var navigateToContentView = false
+    @State private var saveError: String?
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -705,6 +707,14 @@ struct OnboardingSucceeded: View {
                             .foregroundColor(Color("HauzFocus"))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
+
+                        if let saveError {
+                            Text(saveError)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                        }
                     }
                     .transition(.opacity)
                     
@@ -755,14 +765,11 @@ struct OnboardingSucceeded: View {
             }
             
             // Hidden NavigationLink triggered by state
-            NavigationLink(
-                destination: ContentView()
-                    .navigationBarBackButtonHidden(true),
-                isActive: $navigateToContentView
-            ) {
-                EmptyView()
+            // Navigate to the main app when onboarding completes
+            .navigationDestination(isPresented: $navigateToContentView) {
+                ContentView()
+                    .navigationBarBackButtonHidden(true)
             }
-            .hidden()
         }
         .navigationBarBackButtonHidden(true)
         .onAppear {
@@ -779,25 +786,70 @@ struct OnboardingSucceeded: View {
     
     // MARK: - Backend Integration Placeholder
     private func personalizeFeed() async {
-        // TODO: Replace this with actual backend call
-        // Example: await BackendService.shared.personalizeFeed(
-        //     gender: onboardingState.selectedGender,
-        //     brands: onboardingState.selectedBrands.map { $0.name }
-        // )
-        
-        // Simulate loading for 5 seconds
-        try? await Task.sleep(nanoseconds: 5_000_000_000)
-        
-        // Once data is loaded, show success animation
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-            isLoading = false
-            showSuccess = true
+        do {
+            try await upsertProfile()
+            
+            // Once data is saved, show success animation
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                isLoading = false
+                showSuccess = true
+            }
+            
+            // Animate checkmark with a slight delay
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                checkmarkScale = 1.0
+            }
+        } catch {
+            // Surface error to the user and keep loading view
+            await MainActor.run {
+                saveError = error.localizedDescription
+            }
+            debugPrint("Failed to upsert profile: \(error)")
         }
-        
-        // Animate checkmark with a slight delay
-        try? await Task.sleep(nanoseconds: 200_000_000)
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
-            checkmarkScale = 1.0
+    }
+
+    private func upsertProfile() async throws {
+        // Ensure we have an authenticated user
+        let session = try await supabase.auth.session
+        let userId = session.user.id
+        let phone = session.user.phone
+
+        let payload = ProfileUpsert(
+            id: userId,
+            gender: onboardingState.selectedGender,
+            brands: onboardingState.selectedBrands.map { $0.name },
+            phone_number: phone,
+            price_min: nil,
+            price_max: nil
+        )
+
+        _ = try await supabase
+            .from("profiles")
+            .upsert(payload, onConflict: "id")
+            .select()
+            .single()
+            .execute()
+    }
+}
+
+// MARK: - Supabase DTOs
+private struct ProfileUpsert: Encodable {
+    let id: UUID
+    let gender: String
+    let brands: [String]
+    let phone_number: String?
+    let price_min: Double?
+    let price_max: Double?
+}
+
+private enum ProfileSaveError: LocalizedError {
+    case noSession
+    
+    var errorDescription: String? {
+        switch self {
+        case .noSession:
+            return "You're signed out. Please log in again."
         }
     }
 }
