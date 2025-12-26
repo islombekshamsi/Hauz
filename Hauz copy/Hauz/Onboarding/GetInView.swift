@@ -12,9 +12,10 @@ struct GetInView: View {
         ZStack{
             if isLogged{
                 if hasProfile {
-                    MainView()
+                    ContentView()
                 } else {
-                    UserInfo()
+                    // Use the onboarding container so UserInfo receives its required environment object
+                    OnboardingContainer()
                 }
             } else {
                 LoginView(onComplete: {
@@ -38,7 +39,7 @@ struct LoginView: View{
 
     
     var body: some View{
-        Color("HauzLight").ignoresSafeArea(edges: .all)
+        Color("HauzBg").ignoresSafeArea(edges: .all)
         VStack(alignment: .leading, spacing: 12){
             VStack(alignment: .leading, spacing: 8){
                 Text("Hello there!")
@@ -83,7 +84,7 @@ struct LoginView: View{
                     
             }
             .frame(height: 50)
-            .background(.ultraThinMaterial)
+            .background(Color("HauzLight"))
             .clipShape(.capsule)
             .padding(.top, 10)
             
@@ -127,7 +128,7 @@ struct LoginView: View{
             }
             .font(.callout)
             .fontWeight(.medium)
-            .foregroundStyle(Color.primary.secondary)
+            .foregroundStyle(Color("HauzFocus"))
             .frame(maxWidth: .infinity)
         }
         .padding([.horizontal, .top], 20)
@@ -402,15 +403,15 @@ struct OTPVerificationView: View{
     func checkProfileExists(userId: UUID) async -> Bool {
         do {
             let profile: Profile = try await supabase
-                .from("Profiles")
+                .from("profiles") // Supabase table names are lowercase
                 .select()
                 .eq("id", value: userId)
                 .single()
                 .execute()
                 .value
             
-            // Check if profile has required fields (username, fullName, gender)
-            return profile.username != nil && profile.fullName != nil && profile.gender != nil
+            // Consider profile complete if gender is set (username/fullName are optional today)
+            return (profile.gender?.isEmpty == false)
         } catch {
             // Profile doesn't exist or has missing fields
             debugPrint("Profile check error: \(error)")
