@@ -11,7 +11,7 @@ struct MainView: View {
     
     var body: some View {
         ZStack {
-            Color("HauzLight")
+            Color("HauzBg")
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -63,7 +63,7 @@ struct SneakersView: View {
                 .stacked(at: indexOf(card), in: cards.count)
             }
         }
-        .frame(height: 620)
+        .frame(height: 650)
         
         
         if cards.isEmpty {
@@ -124,16 +124,16 @@ struct CardView: View {
             VStack(spacing: 0) {
                 // Image section - takes up most of the card
                 imageSection
-                    .frame(height: 340)
+                    .frame(height: 350)
                 
                 // Info section - compact bottom area
                 infoSection
-                    .frame(height: 220)
+                    .frame(height: 250)
             }
             .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 32))
+            .clipShape(RoundedRectangle(cornerRadius: 2))
             .overlay(
-                RoundedRectangle(cornerRadius: 32)
+                RoundedRectangle(cornerRadius: 2)
                     .stroke(Color("HauzFocus"), lineWidth: 3)
             )
             .shadow(
@@ -215,19 +215,19 @@ struct CardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Price - most important, biggest
                 Text(formattedPrice)
-                    .font(.custom("HooverVariable-Bold", size: 42))
-                    .foregroundColor(Color("HauzFocus"))
+                    .font(.custom("bernoru-blackultraexpanded", size: 45))
+                    .foregroundColor(Color("HauzBg"))
                 
                 // Shoe name - second priority
                 Text(card.shoeName)
-                    .font(.custom("HooverVariable-Bold_Medium", size: 22))
+                    .font(.custom("bernoru-blackultraexpanded", size: 15))
                     .foregroundColor(Color("HauzFocus"))
                     .lineLimit(1)
                 
                 // Brand name - third priority
                 Text(card.brandName)
-                    .font(.custom("HooverVariable-Bold_Regular", size: 14))
-                    .foregroundColor(.secondary)
+                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                    .foregroundColor(Color("HauzFocus"))
             }
             
             HStack(spacing: 12) {
@@ -235,13 +235,13 @@ struct CardView: View {
                     Image(systemName: trendIcon)
                         .font(.system(size: 13, weight: .bold))
                     Text(formattedTrend)
-                        .font(.custom("HooverVariable-Bold_Regular", size: 15))
+                        .font(.custom("bernoru-blackultraexpanded", size: 13))
                 }
                 .foregroundColor(trendColor)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 3)
                         .fill(trendColor.opacity(0.12))
                 )
                 
@@ -250,16 +250,16 @@ struct CardView: View {
                 Button(action: {}) {
                     HStack(spacing: 6) {
                         Text("View")
-                            .font(.custom("HooverVariable-Bold_Regular", size: 14))
+                            .font(.custom("bernoru-blackultraexpanded", size: 15))
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 15, weight: .heavy))
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 10)
                     .background(
-                        Capsule()
-                            .fill(Color("HauzFocus"))
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color("HauzBg"))
                     )
                     .shadow(
                         color: Color.black.opacity(0.2),
@@ -291,11 +291,10 @@ extension View {
 private var header: some View {
     HStack(spacing: 0) {
         Text("Hauz")
-            .font(.custom("HooverVariable-Bold_Regular", size: 45))
-            .bold()
+            .font(.custom("bernoru-blackultraexpanded", size: 40))
             .foregroundStyle(Color("HauzFocus"))
             .frame(maxWidth: .infinity, alignment: .center)
-            .background(Color("HauzLight"))
+            .background(Color("HauzBg"))
     }
     .font(.title2)
     .fontWeight(.medium)
@@ -308,7 +307,7 @@ struct StyleView: View {
     var body: some View {
         ZStack {
             // Background
-            Color("HauzLight")
+            Color("HauzBg")
                 .ignoresSafeArea()
             
             VStack(spacing: 30) {
@@ -356,11 +355,12 @@ struct StyleView: View {
                 // Text content
                 VStack(spacing: 12) {
                     Text("Coming Soon")
-                        .font(.custom("HooverVariable-Bold", size: 32))
+                        .font(.custom("bernoru-blackultraexpanded", size: 30))
                         .foregroundColor(Color("HauzFocus"))
+                        .multilineTextAlignment(.center)
                     
                     Text("We're working on something\namazing for you!")
-                        .font(.custom("HooverVariable-Bold_Regular", size: 16))
+                        .font(.custom("bernoru-blackultraexpanded", size: 15))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
@@ -371,7 +371,7 @@ struct StyleView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 12, weight: .bold))
                     Text("Style Feed")
-                        .font(.custom("HooverVariable-Bold_Regular", size: 14))
+                        .font(.custom("bernoru-blackultraexpanded", size: 10))
                     Image(systemName: "sparkles")
                         .font(.system(size: 12, weight: .bold))
                 }
