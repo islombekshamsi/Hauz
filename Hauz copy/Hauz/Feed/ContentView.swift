@@ -72,7 +72,7 @@ struct ContentView: View {
                             
                             // Tab label
                             Text(tab.rawValue)
-                                .font(.custom("HooverVariable-Bold_Regular", size: 12))
+                                .font(.custom("bernoru-blackultraexpanded", size: 8))
                                 .fontWeight(tab == self.activeTab ? .bold : .regular)
                                 
                         }
@@ -104,9 +104,9 @@ struct ContentView: View {
                                 // Uses CustomMenuView to show settings options in a popover
                                 CustomMenuView(style: .glass) {
                                     Image(systemName: tab.actionSymbol)
-                                        .font(.system(size: 22, weight: .medium))
+                                        .font(.system(size: 20, weight: .medium))
                                         .foregroundStyle(Color("HauzFocus"))
-                                        .frame(width: 55, height: 55)
+                                        .frame(width: 50, height: 50)
                                 } content: {
                                     SettingsMenuView() // Show settings menu content
                                 }
@@ -120,7 +120,7 @@ struct ContentView: View {
                 .animation(.smooth(duration: 0.4, extraBounce: 0), value: activeTab)
             }
         }
-        .frame(height: 55) // Fixed height for tab bar
+        .frame(height: 50) // Fixed height for tab bar
     }
     
     // MARK: - Settings Menu View
@@ -131,8 +131,7 @@ struct ContentView: View {
         VStack(spacing: 20) {
             // Menu title
             Text("Settings")
-                .font(.custom("HooverVariable-Bold_Medium", size: 25))
-                .fontWeight(.bold)
+                .font(.custom("bernoru-blackultraexpanded", size: 20))
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             // Settings options container
@@ -190,8 +189,8 @@ struct ContentView: View {
                 
                 // Menu item title
                 Text(title)
-                    .foregroundStyle(Color("HauzFocus"))
-                    .font(.custom("HooverVariable-Bold", size: 18))
+                    .foregroundStyle(Color("HauzBg"))
+                    .font(.custom("bernoru-blackultraexpanded", size: 10))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(10)
@@ -291,14 +290,13 @@ struct FilterView: View {
     // MARK: Gender Selection
     /// Enum defining gender options for filtering
     enum Gender: Int, CaseIterable {
-        case male, female, preferNotToSay
+        case male, female
         
         /// Display label for each gender option
         var label: String {
             switch self {
             case .male: return "Male"
             case .female: return "Female"
-            case .preferNotToSay: return "Other"
             }
         }
         
@@ -308,7 +306,6 @@ struct FilterView: View {
             switch self{
             case .male: return .blue
             case .female: return .pink
-            case .preferNotToSay: return Color("HauzFocus")
             }
         }
     }
@@ -319,14 +316,13 @@ struct FilterView: View {
     private let genderIcons: [Gender: String] = [
         .male: "figure.stand",
         .female: "figure.stand.dress",
-        .preferNotToSay: "person.fill.questionmark"
     ]
     
     var body: some View {
         VStack(spacing: 20) {
             // MARK: Header
             Text("Filter Preferences")
-                .font(.custom("HooverVariable-Bold_Medium", size: 25))
+                .font(.custom("bernoru-blackultraexpanded", size: 15))
                 .fontWeight(.bold)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
@@ -335,18 +331,18 @@ struct FilterView: View {
                 // Section title
                 HStack {
                     Text("Price Range")
-                        .font(.custom("HooverVariable-Bold_Regular", size: 15))
+                        .font(.custom("bernoru-blackultraexpanded", size: 15))
                     Spacer()
                 }
                 
                 // Display current price range values
                 HStack {
                     Text("$\(Int(lowerLimit))")
-                        .font(.custom("HooverVariable-Bold_Medium", size: 20))
+                        .font(.custom("bernoru-blackultraexpanded", size: 12))
                         .foregroundStyle(.primary)
                     Spacer()
                     Text("$\(Int(upperLimit))")
-                        .font(.custom("HooverVariable-Bold_Medium", size: 20))
+                            .font(.custom("bernoru-blackultraexpanded", size: 12))
                         .foregroundStyle(.primary)
                 }
                 
@@ -373,8 +369,8 @@ struct FilterView: View {
             VStack(spacing: 12) {
                 // Section title
                 HStack {
-                    Text("Gender")
-                        .font(.custom("HooverVariable-Bold_Regular", size: 15))
+                    Text("Section")
+                        .font(.custom("bernoru-blackultraexpanded", size: 15))
                     Spacer()
                 }
                 
@@ -395,7 +391,7 @@ struct FilterView: View {
                                 
                                 // Gender label
                                 Text(gender.label)
-                                    .font(.custom("HooverVariable-Bold_Regular", size: 13))
+                                    .font(.custom("bernoru-blackultraexpanded", size: 10))
                                     .fontWeight(selectedGender == gender ? .semibold : .regular)
                                     .foregroundStyle(selectedGender == gender ? .white : .secondary)
                             }
@@ -443,17 +439,17 @@ struct FilterView: View {
                 // Use lowerLimit, upperLimit, and selectedGender to filter results
             } label: {
                 Text("Apply Filters")
-                    .font(.custom("HooverVariable-Bold_Medium", size: 18))
+                    .font(.custom("bernoru-blackultraexpanded", size: 12))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
             .buttonStyle(.glassProminent)
-            .tint(Color("HauzFocus"))
+            .tint(Color("HauzBg"))
             .controlSize(.large)
             
             // MARK: Helper Text
             Text("Adjust your preferences and tap Apply to see results")
-                .font(.custom("HooverVariable-Bold_Thin", size: 11))
+                .font(.custom("bernoru-blackultraexpanded", size: 6))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
         }
@@ -573,3 +569,11 @@ struct RangeSlider: View {
 #Preview{
     ContentView()
 }
+
+/*
+ // Test each one until one works
+ .font(.custom("bernoru-blackultraexpanded", size: 16))
+ .font(.custom("Bernoru-BlackUltraExpanded", size: 16))
+ .font(.custom("Bernoru Black UltraExpanded", size: 16))
+ 
+ */
