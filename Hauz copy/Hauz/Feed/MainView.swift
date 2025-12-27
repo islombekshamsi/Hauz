@@ -4,10 +4,10 @@ import SwiftUI
 struct MainView: View {
     @State private var filters: [String] = ["Sneakers","Style"]
     @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
-    @State private var cards = [
-        CardData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9),
-        CardData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5),
-    ]
+    @ObservedObject var feedService: FeedService
+    @State private var isLoading = false
+    @State private var isLoadingMore = false
+    @State private var showFilterSettings = false
     
     var body: some View {
         ZStack {
@@ -17,86 +17,175 @@ struct MainView: View {
             VStack(spacing: 0) {
                 header
                 
-                HauzFilterView(options: filters, selection: $selectedFilter)
-                    .background(
-                        Divider(), alignment: .bottom
-                    )
+                HStack(spacing: 0) {
+                    HauzFilterView(options: filters, selection: $selectedFilter)
+                }
+                .background(
+                    Divider(), alignment: .bottom
+                )
                 
                 Spacer().frame(height: 5)
                 
                 if selectedFilter == "Sneakers" {
-                    SneakersView()
+                    SneakersView(
+                        cards: feedService.feed.map { $0.asCardData },
+                        isLoadingMore: isLoadingMore,
+                        noResultsForFilters: feedService.noResultsForFilters,
+                        onSwipe: { id, direction in
+                            Task {
+                                await feedService.swipe(SwipeEvent(sneakerID: id, direction: direction))
+                            }
+                        },
+                        onNeedMore: {
+                            Task {
+                                guard !isLoadingMore else { return }
+                                isLoadingMore = true
+                                await feedService.loadMore()
+                                isLoadingMore = false
+                            }
+                        }
+                    )
                 } else {
                     StyleView()
                 }
                 
-                // Card stack container
-                
-                
                 Spacer()
             }
+            
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzFocus")))
+                    .scaleEffect(1.2)
+            }
         }
-    }
-    
-    func indexOf(_ card: CardData) -> Int {
-        cards.firstIndex(where: { $0.id == card.id }) ?? 0
-    }
-    
-    func removeCard(_ card: CardData) {
-        withAnimation {
-            cards.removeAll { $0.id == card.id }
+        .task {
+            if feedService.feed.isEmpty {
+                isLoading = true
+                await feedService.load()
+                isLoading = false
+            }
         }
     }
 }
 
 struct SneakersView: View {
-    @State private var cards = [
-        CardData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9),
-        CardData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5),
-    ]
+    let cards: [CardData]
+    let isLoadingMore: Bool
+    let noResultsForFilters: Bool
+    var onSwipe: (UUID, String) -> Void
+    var onNeedMore: () -> Void
+    
     var body: some View {
-        ZStack {
-            ForEach(cards) { card in
-                CardView(card: card) {
-                    removeCard(card)
+        VStack(spacing: 16) {
+            if cards.isEmpty {
+                Spacer()
+                VStack(spacing: 16) {
+                    if isLoadingMore {
+                        ProgressView("Loading more...")
+                            .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzFocus")))
+                            .foregroundColor(.secondary)
+                    } else if noResultsForFilters {
+                        // No shoes match the current filters
+                        VStack(spacing: 12) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 50))
+                                .foregroundColor(Color("HauzFocus").opacity(0.5))
+                            
+                            Text("No shoes found")
+                                .font(.custom("bernoru-blackultraexpanded", size: 20))
+                                .foregroundColor(.primary)
+                            
+                            Text("Try adjusting your filters\n(price range, gender, or brands)")
+                                .font(.custom("bernoru-blackultraexpanded", size: 12))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
+                    } else {
+                        // Ran out of shoes but can load more
+                        Text("Ran out of shoes.")
+                            .font(.custom("bernoru-blackultraexpanded", size: 18))
+                            .foregroundColor(.secondary)
+                        Text("Tap below to load more sneakers.")
+                            .font(.custom("bernoru-blackultraexpanded", size: 12))
+                            .foregroundColor(.secondary)
+                        
+                        Button {
+                            onNeedMore()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                Text("Load more")
+                            }
+                            .font(.custom("bernoru-blackultraexpanded", size: 16))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(
+                                Capsule()
+                                    .fill(Color("HauzFocus"))
+                            )
+                            .foregroundColor(.white)
+                        }
+                    }
                 }
-                .stacked(at: indexOf(card), in: cards.count)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                Spacer()
+            } else {
+                // Limit the visible stack to keep the layout tidy
+                let visibleCards = Array(cards.prefix(5))
+                
+                ZStack {
+                    ForEach(visibleCards) { card in
+                        CardView(card: card) { direction in
+                            onSwipe(card.id, direction)
+                        }
+                        .stacked(at: indexOf(card), in: visibleCards.count)
+                    }
+                }
+                .frame(height: 650)
+                .animation(.spring(response: 0.45, dampingFraction: 0.8), value: cards)
+                // No button until the deck is empty
             }
-        }
-        .frame(height: 650)
-        
-        
-        if cards.isEmpty {
-            Text("Ran out of shoes. Wait a minute!")
         }
     }
     
     func indexOf(_ card: CardData) -> Int {
         cards.firstIndex(where: { $0.id == card.id }) ?? 0
     }
-    
-    func removeCard(_ card: CardData) {
-        withAnimation {
-            cards.removeAll { $0.id == card.id }
-        }
-    }
 }
 
 // MARK: - Card Data Model
-struct CardData: Identifiable {
-    let id: Int
+struct CardData: Identifiable, Equatable {
+    let id: UUID
     let shoeName: String
     let brandName: String
-    let price: Double
-    let shoeImage: String
+    let price: Double?
+    let imageURL: URL?
     var priceTrendIsUp: Bool
     var priceChangePercentage: Double
+    let stockxLink: String?
+}
+
+private extension SneakerCard {
+    var asCardData: CardData {
+        CardData(
+            id: id,
+            shoeName: name,
+            brandName: brand,
+            price: price,
+            imageURL: imageURL,
+            priceTrendIsUp: true,
+            priceChangePercentage: 1.0,
+            stockxLink: stockxLink
+        )
+    }
 }
 
 // MARK: - Individual Card View
 struct CardView: View {
     let card: CardData
-    let onRemove: () -> Void
+    let onSwipe: (String) -> Void
     
     @State private var offset = CGSize.zero
     @State private var rotation: Double = 0
@@ -110,7 +199,10 @@ struct CardView: View {
     }
     
     private var formattedPrice: String {
-        "$\(Int(card.price))"
+        if let price = card.price {
+            return "$\(Int(price))"
+        }
+        return "$—"
     }
     
     private var formattedTrend: String {
@@ -182,8 +274,11 @@ struct CardView: View {
                             rotation = Double(direction * 20)
                         }
                         
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            onRemove()
+                        let dirString = direction > 0 ? "right" : "left"
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            withAnimation(.spring()) {
+                                onSwipe(dirString)
+                            }
                         }
                     } else {
                         withAnimation(.spring()) {
@@ -201,11 +296,23 @@ struct CardView: View {
             // Pure white background
             Color.white
             
-            Image(card.shoeImage)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 300, height: 300)
-                .padding(20)
+            if let url = card.imageURL {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 300, height: 300)
+                        .padding(20)
+                } placeholder: {
+                    ProgressView()
+                }
+            } else {
+                Image("asics_forpreview")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 300, height: 300)
+                    .padding(20)
+            }
         }
     }
     
@@ -247,7 +354,11 @@ struct CardView: View {
                 
                 Spacer()
                 
-                Button(action: {}) {
+                Button(action: {
+                    if let link = card.stockxLink, let url = URL(string: link) {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
                     HStack(spacing: 6) {
                         Text("View")
                             .font(.custom("bernoru-blackultraexpanded", size: 15))
@@ -268,6 +379,8 @@ struct CardView: View {
                         y: 4
                     )
                 }
+                .disabled(card.stockxLink == nil)
+                .opacity(card.stockxLink == nil ? 0.5 : 1.0)
             }
         }
         .padding(.horizontal, 24)
@@ -396,5 +509,5 @@ struct StyleView: View {
 }
 
 #Preview {
-    MainView()
+    ContentView()
 }
