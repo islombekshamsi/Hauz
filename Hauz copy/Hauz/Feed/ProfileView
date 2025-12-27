@@ -4,11 +4,9 @@ struct ProfileView: View {
     @State private var filters: [String] = ["Sneakers","Style"]
     @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
     
-    // Sample data - replace with your actual data source
-    @State private var likedShoes: [LikedShoeData] = [
-        LikedShoeData(id: 1, shoeName: "ASICS Gel-1130", brandName: "ASICS", price: 120.00, shoeImage: "asics_forpreview", priceTrendIsUp: true, priceChangePercentage: 0.9, isPinned: false),
-        LikedShoeData(id: 2, shoeName: "Jordan 1s", brandName: "Air Jordan", price: 180.00, shoeImage: "aj1_forpreview", priceTrendIsUp: false, priceChangePercentage: 0.5, isPinned: false),
-    ]
+    @State private var likedShoes: [LikedShoeData] = []
+    @State private var isLoading = false
+    private let feedService = FeedService()
     
     // Computed properties for pinned and unpinned shoes
     private var pinnedShoes: [LikedShoeData] {
@@ -66,7 +64,16 @@ struct ProfileView: View {
                     .padding(.top, 16)
                     .padding(.trailing, 10)
                 }
+                
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzFocus")))
+                        .padding(.top, 16)
+                }
             }
+        }
+        .task {
+            await loadLikedShoes()
         }
     }
     
@@ -107,7 +114,7 @@ struct ProfileView: View {
     private func applyPriceLowToHighSort() {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
             let pinned = likedShoes.filter { $0.isPinned }
-            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { $0.price < $1.price }
+            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { ($0.price ?? 0) < ($1.price ?? 0) }
             likedShoes = pinned + unpinned
         }
         print("Price Low to High sort applied")
@@ -116,23 +123,53 @@ struct ProfileView: View {
     private func applyPriceHighToLowSort() {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
             let pinned = likedShoes.filter { $0.isPinned }
-            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { $0.price > $1.price }
+            let unpinned = likedShoes.filter { !$0.isPinned }.sorted { ($0.price ?? 0) > ($1.price ?? 0) }
             likedShoes = pinned + unpinned
         }
         print("Price High to Low sort applied")
     }
 }
 
+private extension ProfileView {
+    func loadLikedShoes() async {
+        guard !isLoading else { return }
+        await MainActor.run { isLoading = true }
+        defer { Task { await MainActor.run { isLoading = false } } }
+        do {
+            // Reuse feed service helper to fetch liked details
+            let likedCards = try await feedService.fetchLikedForProfile()
+            await MainActor.run {
+                likedShoes = likedCards.map { card in
+                    LikedShoeData(
+                        id: card.id,
+                        shoeName: card.name,
+                        brandName: card.brand,
+                        price: card.price,
+                        imageURL: card.imageURL,
+                        priceTrendIsUp: true,
+                        priceChangePercentage: 1.0,
+                        isPinned: false,
+                        stockxLink: card.stockxLink
+                    )
+                }
+            }
+        } catch {
+            debugPrint("Failed to load liked shoes: \(error)")
+        }
+    }
+}
+
 // MARK: - Liked Shoe Data Model (mutable version for ProfileView)
 struct LikedShoeData: Identifiable {
-    let id: Int
+    let id: UUID
     let shoeName: String
     let brandName: String
-    let price: Double
-    let shoeImage: String
+    let price: Double?
+    let imageURL: URL?
     var priceTrendIsUp: Bool
     var priceChangePercentage: Double
     var isPinned: Bool
+    let stockxLink: String?
 }
 
 // MARK: - Flippable Shoe Card
@@ -152,12 +189,25 @@ struct FlippableShoeCard: View {
                     Color.white
                     
                     // Giant shoe image - the absolute star
-                    Image(card.shoeImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 320, height: 200)
-                        .padding(.vertical, 30)
-                        .padding(.horizontal, 20)
+                    if let url = card.imageURL {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 320, height: 200)
+                                .padding(.vertical, 30)
+                                .padding(.horizontal, 20)
+                        } placeholder: {
+                            ProgressView()
+                        }
+                    } else {
+                        Image("asics_forpreview")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 320, height: 200)
+                            .padding(.vertical, 30)
+                            .padding(.horizontal, 20)
+                    }
                     
                     // Pin button - top left
                     Button(action: onTogglePin) {
@@ -176,7 +226,7 @@ struct FlippableShoeCard: View {
                     .padding(.leading, 10)
                     
                     // Floating price badge - top right, clean and bold
-                    Text("$\(Int(card.price))")
+                    Text(card.price.map { "$\(Int($0))" } ?? "$—")
                         .font(.custom("bernoru-blackultraexpanded", size: 20))
                         .foregroundColor(.white)
                         .padding(.horizontal, 18)
@@ -212,11 +262,17 @@ struct FlippableShoeCard: View {
                     Spacer()
                     
                     // View button
-                    Button(action: {}) {
+                    Button(action: {
+                        if let link = card.stockxLink, let url = URL(string: link) {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
                         Image(systemName: "arrow.right.circle.fill")
                             .font(.system(size: 36))
                             .foregroundColor(Color("HauzBg"))
                     }
+                    .disabled(card.stockxLink == nil)
+                    .opacity(card.stockxLink == nil ? 0.5 : 1.0)
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
