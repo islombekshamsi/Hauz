@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 // MARK: - Custom Tab Enum
 /// Defines the available tabs in the app with their associated properties
@@ -36,11 +37,14 @@ struct ContentView: View {
     /// Used to switch between Feed and Profile views
     @State private var activeTab: CustomTab = .feed
     
+    /// Shared FeedService instance for both MainView and FilterView
+    @StateObject private var feedService = FeedService()
+    
     var body: some View {
         // Main TabView that switches between Feed and Profile
         TabView(selection: $activeTab){
             Tab.init(value: .feed){
-                MainView()
+                MainView(feedService: feedService)
                     .toolbarVisibility(.hidden, for: .tabBar) // Hide default tab bar
             }
             Tab.init(value: .profile){
@@ -53,6 +57,7 @@ struct ContentView: View {
             CustomTabBarView()
                 .padding(.horizontal, 20)
         }
+        .environmentObject(feedService) // Make feedService available to all child views
     }
     
     // MARK: - Custom Tab Bar
@@ -281,6 +286,9 @@ fileprivate extension View{
 /// The main filter menu view with price range and gender selection
 /// Displayed as a popover from the filter button on the Feed tab
 struct FilterView: View {
+    @EnvironmentObject var feedService: FeedService
+    @Environment(\.dismiss) var dismiss
+    
     // MARK: Price Range State
     /// Lower bound of the price range slider
     @State private var lowerLimit: Double = 50
@@ -311,6 +319,8 @@ struct FilterView: View {
     }
     /// Currently selected gender filter
     @State private var selectedGender: Gender = .male
+    @State private var isApplying = false
+    @State private var showError: String?
     
     /// SF Symbol icons for each gender option
     private let genderIcons: [Gender: String] = [
@@ -433,19 +443,36 @@ struct FilterView: View {
                     .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
             )
             
+            // Show error if any
+            if let showError {
+                Text(showError)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+            }
+            
             // MARK: Apply Button
             Button {
-                // TODO: Implement filter application logic
-                // Use lowerLimit, upperLimit, and selectedGender to filter results
+                Task {
+                    await applyFilters()
+                }
             } label: {
-                Text("Apply Filters")
-                    .font(.custom("bernoru-blackultraexpanded", size: 12))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                if isApplying {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                } else {
+                    Text("Apply Filters")
+                        .font(.custom("bernoru-blackultraexpanded", size: 12))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
             }
             .buttonStyle(.glassProminent)
             .tint(Color("HauzBg"))
             .controlSize(.large)
+            .disabled(isApplying)
             
             // MARK: Helper Text
             Text("Adjust your preferences and tap Apply to see results")
@@ -460,7 +487,85 @@ struct FilterView: View {
                 .fill(.thinMaterial) // Glass effect for entire menu
         )
         .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10) // Subtle shadow for depth
+        .task {
+            await loadCurrentPreferences()
+        }
     }
+    
+    /// Load user's current preferences from Supabase
+    private func loadCurrentPreferences() async {
+        do {
+            let session = try await supabase.auth.session
+            let userId = session.user.id
+            
+            let profile: Profile = try await supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            
+            await MainActor.run {
+                if let priceMin = profile.priceMin {
+                    lowerLimit = priceMin
+                }
+                if let priceMax = profile.priceMax {
+                    upperLimit = priceMax
+                }
+                if let gender = profile.gender {
+                    selectedGender = gender == "Male" ? .male : .female
+                }
+            }
+        } catch {
+            debugPrint("Failed to load preferences: \(error)")
+        }
+    }
+    
+    /// Apply filters by updating Supabase and reloading feed
+    private func applyFilters() async {
+        isApplying = true
+        showError = nil
+        
+        do {
+            // Update profile in Supabase
+            let session = try await supabase.auth.session
+            let userId = session.user.id
+            
+            let payload = FilterUpdate(
+                price_min: lowerLimit,
+                price_max: upperLimit,
+                gender: selectedGender.label
+            )
+            
+            _ = try await supabase
+                .from("profiles")
+                .update(payload)
+                .eq("id", value: userId)
+                .execute()
+            
+            // Reload feed with new filters
+            await feedService.load()
+            
+            isApplying = false
+            
+            // Dismiss the popover after successful update
+            dismiss()
+        } catch {
+            await MainActor.run {
+                showError = "Failed to apply filters"
+                isApplying = false
+            }
+            debugPrint("Failed to apply filters: \(error)")
+        }
+    }
+}
+
+// DTO for filter updates
+private struct FilterUpdate: Encodable {
+    let price_min: Double
+    let price_max: Double
+    let gender: String
 }
 
 // MARK: - Range Slider Component
