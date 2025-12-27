@@ -23,6 +23,53 @@ struct GetInView: View {
                 }, hasProfile: $hasProfile)
             }
         }
+        .task {
+            await restoreSessionIfAvailable()
+        }
+    }
+}
+
+private extension GetInView {
+    /// Attempts to restore an existing Supabase session and set the correct initial screen.
+    func restoreSessionIfAvailable() async {
+        do {
+            // If the user has a cached session, validate profile; otherwise sign out and show login.
+            let session = try await supabase.auth.session
+            let profileExists = await checkProfileExists(userId: session.user.id)
+            
+            if profileExists {
+                await MainActor.run {
+                    isLogged = true
+                    hasProfile = true
+                }
+            } else {
+                try? await supabase.auth.signOut()
+                await MainActor.run {
+                    isLogged = false
+                    hasProfile = false
+                }
+            }
+        } catch {
+            // No session or failed restore; keep showing login.
+            debugPrint("No cached session to restore: \(error)")
+        }
+    }
+    
+    func checkProfileExists(userId: UUID) async -> Bool {
+        do {
+            let profile: Profile = try await supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            
+            return (profile.gender?.isEmpty == false)
+        } catch {
+            debugPrint("Profile check error during restore: \(error)")
+            return false
+        }
     }
 }
 
