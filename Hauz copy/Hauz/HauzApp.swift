@@ -11,7 +11,7 @@ import SwiftUI
 struct HauzApp: App {
     var body: some Scene {
         WindowGroup {
-            GetInView()
+            SplashScreenView()
         }
     }
 }
