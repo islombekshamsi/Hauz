@@ -89,7 +89,7 @@ struct UserInfo: View {
     
     var body: some View {
         ZStack {
-            Color("HauzBg")
+            Color("HauzLight")
                 .ignoresSafeArea(edges: .all)
             
             VStack(spacing: 0) {
@@ -104,7 +104,8 @@ struct UserInfo: View {
                         // Header section
                         VStack(spacing: 12) {
                             Text("Welcome to Hauz! Let's get to know you.")
-                                .font(.custom("HooverVariable-Bold_Regular", size: 20))
+                                .font(.custom("bernoru-blackultraexpanded", size: 16))
+
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.primary)
                                 .opacity(showContent ? 1 : 0)
@@ -156,7 +157,7 @@ struct UserInfo: View {
                         NavigationLink(destination: UserInfo2().environmentObject(onboardingState)) {
                             HStack {
                                 Text("Continue")
-                                    .font(.custom("HooverVariable-Bold_Regular", size: 18))
+                                    .font(.custom("bernoru-blackultraexpanded", size: 16))
                                     .foregroundColor(.white)
                                 
                                 Image(systemName: "arrow.right")
@@ -189,7 +190,7 @@ struct UserInfo: View {
                         .padding(.top, 10)
                         
                         Text("Don't worry, you can change the filters later on!")
-                            .font(.custom("HooverVariable-Bold_Regular", size: 14))
+                            .font(.custom("bernoru-blackultraexpanded", size: 12))
                             .foregroundColor(.gray.opacity(0.7))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 30)
