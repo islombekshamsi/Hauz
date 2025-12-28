@@ -181,7 +181,13 @@ struct ContentView: View {
     @ViewBuilder
     func RowView(_ image: String, _ title: String) -> some View{
         Button {
-            // TODO: Add action handling for each menu item
+            // Handle different menu actions
+            if title == "Log Out" {
+                Task {
+                    await handleLogout()
+                }
+            }
+            // TODO: Add action handling for other menu items
         } label: {
             HStack(spacing: 12){
                 // Icon with circular background
@@ -200,6 +206,17 @@ struct ContentView: View {
             }
             .padding(10)
             .contentShape(.rect) // Make entire row tappable
+        }
+    }
+    
+    // MARK: - Logout Handler
+    /// Handles user logout and returns to login screen
+    private func handleLogout() async {
+        do {
+            try await supabase.auth.signOut()
+            debugPrint("✅ User logged out successfully")
+        } catch {
+            debugPrint("❌ Error logging out: \(error)")
         }
     }
 }
