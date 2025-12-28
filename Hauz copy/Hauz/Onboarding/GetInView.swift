@@ -8,6 +8,12 @@ struct GetInView: View {
     @State private var isLogged = false
     @State private var hasProfile = false
     
+    // Accept initial states from SplashScreen to prevent flash
+    init(initialLoginState: Bool = false, initialProfileState: Bool = false) {
+        _isLogged = State(initialValue: initialLoginState)
+        _hasProfile = State(initialValue: initialProfileState)
+    }
+    
     var body: some View {
         ZStack{
             if isLogged{
@@ -23,53 +29,6 @@ struct GetInView: View {
                 }, hasProfile: $hasProfile)
             }
         }
-        .task {
-            await restoreSessionIfAvailable()
-        }
-    }
-}
-
-private extension GetInView {
-    /// Attempts to restore an existing Supabase session and set the correct initial screen.
-    func restoreSessionIfAvailable() async {
-        do {
-            // If the user has a cached session, validate profile; otherwise sign out and show login.
-            let session = try await supabase.auth.session
-            let profileExists = await checkProfileExists(userId: session.user.id)
-            
-            if profileExists {
-                await MainActor.run {
-                    isLogged = true
-                    hasProfile = true
-                }
-            } else {
-                try? await supabase.auth.signOut()
-                await MainActor.run {
-                    isLogged = false
-                    hasProfile = false
-                }
-            }
-        } catch {
-            // No session or failed restore; keep showing login.
-            debugPrint("No cached session to restore: \(error)")
-        }
-    }
-    
-    func checkProfileExists(userId: UUID) async -> Bool {
-        do {
-            let profile: Profile = try await supabase
-                .from("profiles")
-                .select()
-                .eq("id", value: userId)
-                .single()
-                .execute()
-                .value
-            
-            return (profile.gender?.isEmpty == false)
-        } catch {
-            debugPrint("Profile check error during restore: \(error)")
-            return false
-        }
     }
 }
 
@@ -81,19 +40,22 @@ struct LoginView: View{
     @State var showVerificationView: Bool = false
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @FocusState private var isTextFieldFocused: Bool
     
     
 
     
     var body: some View{
-        Color("HauzBg").ignoresSafeArea(edges: .all)
+        Color("HauzLight").ignoresSafeArea(edges: .all)
         VStack(alignment: .leading, spacing: 12){
             VStack(alignment: .leading, spacing: 8){
                 Text("Hello there!")
-                    .font(.custom("HooverVariable-Bold", size: 40))
+                    .font(.custom("bernoru-blackultraexpanded", size: 25))
+
                     .foregroundStyle(Color("HauzFocus"))
                 Text("Please enter your phone number to proceed")
-                    .font(.custom("HooverVariable-Bold_Thin", size: 18))
+                    .font(.custom("bernoru-blackultraexpanded", size: 16))
+
                     .foregroundStyle(Color("HauzFocus"))
             }
             .fontWeight(.medium)
@@ -113,15 +75,16 @@ struct LoginView: View{
             HStack(spacing: 8){
                 HStack(spacing: 5){
                     Text("🇺🇸 +1")
-                        .font(.custom("HooverVariable-Bold", size: 15))
+                        .font(.custom("bernoru-blackultraexpanded", size: 12))
                         .foregroundStyle(.gray)
         
                     
                     TextField("Mobile Number", text: $mobileNumber)
-                        .font(.custom("HooverVariable-Bold_Regular", size: 18))
+                        .font(.custom("bernoru-blackultraexpanded", size: 12))
                         .textContentType(.telephoneNumber)
                         .keyboardType(.phonePad)
                         .padding(10)
+                        .focused($isTextFieldFocused)
                         .onChange(of: mobileNumber) {
                             mobileNumber = formatUSNumber(input: mobileNumber)
                             errorMessage = nil
@@ -132,6 +95,11 @@ struct LoginView: View{
             }
             .frame(height: 50)
             .background(Color("HauzLight"))
+            .overlay(
+                RoundedRectangle(cornerRadius: 25)
+                    .stroke(isTextFieldFocused ? Color("HauzBg") : Color.clear, lineWidth: 2)
+            )
+            .animation(.easeInOut(duration: 0.3), value: isTextFieldFocused)
             .clipShape(.capsule)
             .padding(.top, 10)
             
@@ -146,7 +114,7 @@ struct LoginView: View{
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     }
                     Text("Get Verification Code")
-                        .font(.custom("HooverVariable-Bold_Regular", size: 20))
+                        .font(.custom("bernoru-blackultraexpanded", size: 12))
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
@@ -161,17 +129,20 @@ struct LoginView: View{
             
             Spacer(minLength: 0)
             // links and more
-            HStack(spacing: 4){
+            VStack(spacing: 4){
                 Link("Terms of Service", destination: URL(string: "https://apple.com")!)
                     .underline()
-                    .font(.custom("HooverVariable-Bold", size: 15))
+                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+
                 
                 Text("&")
-                    .font(.custom("HooverVariable-Bold", size: 15))
+                    .font(.custom("bernoru-blackultraexpanded", size: 10))
+
                 
                 Link("Privacy Policy", destination: URL(string: "https://apple.com")!)
                     .underline()
-                    .font(.custom("HooverVariable-Bold", size: 15))
+                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+
             }
             .font(.callout)
             .fontWeight(.medium)
@@ -480,5 +451,13 @@ struct OTPVerificationView: View{
  -- HooverVariable-Bold_Medium
  -- HooverVariable-Bold
 
+ 
+ */
+
+/*
+ // Test each one until one works
+ .font(.custom("bernoru-blackultraexpanded", size: 16))
+ .font(.custom("Bernoru-BlackUltraExpanded", size: 16))
+ .font(.custom("Bernoru Black UltraExpanded", size: 16))
  
  */
