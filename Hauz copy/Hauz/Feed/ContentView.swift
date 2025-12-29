@@ -306,6 +306,10 @@ struct FilterView: View {
     @EnvironmentObject var feedService: FeedService
     @Environment(\.dismiss) var dismiss
     
+    // MARK: Natural Language Search State
+    /// User's natural language search query
+    @State private var searchQuery: String = ""
+    
     // MARK: Price Range State
     /// Lower bound of the price range slider
     @State private var lowerLimit: Double = 50
@@ -345,6 +349,16 @@ struct FilterView: View {
         .female: "figure.stand.dress",
     ]
     
+    /// Example search queries for user inspiration
+    private let exampleQueries = [
+        "something cool",
+        "winter shoes",
+        "running sneakers",
+        "casual style",
+        "retro vibes",
+        "basketball shoes"
+    ]
+    
     var body: some View {
         VStack(spacing: 20) {
             // MARK: Header
@@ -352,6 +366,74 @@ struct FilterView: View {
                 .font(.custom("bernoru-blackultraexpanded", size: 15))
                 .fontWeight(.bold)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // MARK: Natural Language Search Section
+            VStack(spacing: 12) {
+                // Section title
+                HStack {
+                    Text("What are you looking for?")
+                        .font(.custom("bernoru-blackultraexpanded", size: 15))
+                    Spacer()
+                }
+                
+                // Search text field
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 16))
+                    
+                    TextField("e.g., something cool for winter", text: $searchQuery)
+                        .font(.custom("bernoru-blackultraexpanded", size: 11))
+                        .textFieldStyle(.plain)
+                        .disabled(isApplying)
+                    
+                    if !searchQuery.isEmpty {
+                        Button {
+                            searchQuery = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.primary.opacity(0.05))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                )
+                
+                // Example queries
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(exampleQueries, id: \.self) { example in
+                            Button {
+                                searchQuery = example
+                            } label: {
+                                Text(example)
+                                    .font(.custom("bernoru-blackultraexpanded", size: 8))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color("HauzFocus").opacity(0.1))
+                                    .foregroundColor(Color("HauzFocus"))
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+            )
             
             // MARK: Price Range Section
             VStack(spacing: 12) {
@@ -561,13 +643,37 @@ struct FilterView: View {
                 .eq("id", value: userId)
                 .execute()
             
-            // Reload feed with new filters
-            await feedService.load()
+            // Use semantic search if query exists, otherwise normal load
+            let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespaces)
+            if !trimmedQuery.isEmpty {
+                print("🔍 Using semantic search with query: '\(trimmedQuery)'")
+                
+                // Run search with a 45-second timeout
+                try await withTimeout(seconds: 45) {
+                    await feedService.searchWithNaturalLanguage(
+                        trimmedQuery,
+                        gender: selectedGender.label,
+                        priceMin: lowerLimit,
+                        priceMax: upperLimit
+                    )
+                }
+            } else {
+                print("📋 Using regular feed load")
+                await feedService.load()
+            }
             
-            isApplying = false
+            await MainActor.run {
+                isApplying = false
+            }
             
             // Dismiss the popover after successful update
             dismiss()
+        } catch is TimeoutError {
+            await MainActor.run {
+                showError = "Search timed out. Try a simpler query."
+                isApplying = false
+            }
+            print("⏱️ Semantic search timed out")
         } catch {
             await MainActor.run {
                 showError = "Failed to apply filters"
@@ -576,7 +682,28 @@ struct FilterView: View {
             debugPrint("Failed to apply filters: \(error)")
         }
     }
+    
+    /// Helper function to run async code with a timeout
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw TimeoutError()
+            }
+            
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
 }
+
+// Timeout error type
+private struct TimeoutError: Error {}
 
 // DTO for filter updates
 private struct FilterUpdate: Encodable {
