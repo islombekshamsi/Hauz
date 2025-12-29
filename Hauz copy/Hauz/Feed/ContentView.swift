@@ -342,6 +342,7 @@ struct FilterView: View {
     @State private var selectedGender: Gender = .male
     @State private var isApplying = false
     @State private var showError: String?
+    @State private var showNotice: String?
     
     /// SF Symbol icons for each gender option
     private let genderIcons: [Gender: String] = [
@@ -550,6 +551,14 @@ struct FilterView: View {
                     .multilineTextAlignment(.center)
             }
             
+            // Show non-fatal notice (e.g., no strong matches, showing closest results)
+            if let showNotice {
+                Text(showNotice)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
             // MARK: Apply Button
             Button {
                 Task {
@@ -625,6 +634,7 @@ struct FilterView: View {
     private func applyFilters() async {
         isApplying = true
         showError = nil
+        showNotice = nil
         
         do {
             // Update profile in Supabase
@@ -649,13 +659,20 @@ struct FilterView: View {
                 print("🔍 Using semantic search with query: '\(trimmedQuery)'")
                 
                 // Run search with a 45-second timeout
-                try await withTimeout(seconds: 45) {
-                    await feedService.searchWithNaturalLanguage(
+                let hasResults = try await withTimeout(seconds: 45) {
+                    try await feedService.searchWithNaturalLanguage(
                         trimmedQuery,
                         gender: selectedGender.label,
                         priceMin: lowerLimit,
                         priceMax: upperLimit
                     )
+                }
+                
+                if !hasResults, let notice = feedService.semanticSearchNotice {
+                    // Keep popover open only when the user truly has 0 results, so they can adjust filters.
+                    await MainActor.run { showNotice = notice }
+                } else {
+                    await MainActor.run { showNotice = nil }
                 }
             } else {
                 print("📋 Using regular feed load")
@@ -666,8 +683,10 @@ struct FilterView: View {
                 isApplying = false
             }
             
-            // Dismiss the popover after successful update
-            dismiss()
+            // Dismiss unless we are showing a "0 results" notice.
+            if showNotice == nil {
+                dismiss()
+            }
         } catch is TimeoutError {
             await MainActor.run {
                 showError = "Search timed out. Try a simpler query."
