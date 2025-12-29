@@ -28,6 +28,7 @@ final class FeedService: ObservableObject {
     @Published private(set) var noResultsForFilters: Bool = false
     @Published private(set) var isSemanticSearchActive: Bool = false
     @Published private(set) var currentSearchQuery: String?
+    @Published private(set) var semanticSearchNotice: String?
     
     private var swipedRightIDs: Set<UUID> = []
     private var swipedLeftIDs: Set<UUID> = []
@@ -165,35 +166,46 @@ final class FeedService: ObservableObject {
     ///   - gender: Gender filter
     ///   - priceMin: Minimum price
     ///   - priceMax: Maximum price
-    func searchWithNaturalLanguage(_ query: String, gender: String?, priceMin: Double, priceMax: Double) async {
+    /// Runs semantic search and updates `feed`.
+    /// - Returns: `true` if we ended up with at least 1 result after filtering swipes; otherwise `false`.
+    func searchWithNaturalLanguage(_ query: String, gender: String?, priceMin: Double, priceMax: Double) async throws -> Bool {
         let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
+        semanticSearchNotice = nil
         
         // If query is empty, reload normal feed
         guard !trimmedQuery.isEmpty else {
             isSemanticSearchActive = false
             currentSearchQuery = nil
             await load()
-            return
+            return false
         }
 
         // Skip if the exact same search was just run to avoid redundant network calls
         let signature = SearchSignature(query: trimmedQuery, gender: gender, priceMin: priceMin, priceMax: priceMax)
         if let last = lastSearchSignature, last == signature {
             print("🔁 Skipping semantic search: same query/filters as last run")
-            return
+            return false
         }
         lastSearchSignature = signature
         
         do {
-            let searchService = SemanticSearchService()
-            print("🚀 Starting semantic search...")
-            let results = try await searchService.searchSneakers(
+            // Capture config on the MainActor.
+            let config = SemanticSearchConfig(
+                openAIKey: AppSecrets.openAIKey,
+                supabaseURL: AppSecrets.supabaseURL,
+                supabaseAPIKey: AppSecrets.supabaseAnonKey
+            )
+            
+            // Run directly (async network calls won't block UI; avoids detached-task weirdness).
+            let response = try await SemanticSearchService.searchSneakers(
+                config: config,
                 query: trimmedQuery,
                 gender: gender,
                 priceMin: priceMin,
                 priceMax: priceMax
             )
             
+            let results = response.cards
             print("📊 Received \(results.count) results from search service")
             
             // Filter out already swiped
@@ -208,17 +220,23 @@ final class FeedService: ObservableObject {
                 isSemanticSearchActive = true
                 currentSearchQuery = trimmedQuery
                 noResultsForFilters = filtered.isEmpty
+                
+                // Only show a message when the user truly has 0 results after all logic.
+                if filtered.isEmpty {
+                    let genderText = (gender?.isEmpty == false) ? gender! : "your selected gender"
+                    semanticSearchNotice = "No \(genderText) shoes found for “\(trimmedQuery)” in $\(Int(priceMin))–$\(Int(priceMax)). Try increasing your max price."
+                } else {
+                    semanticSearchNotice = nil
+                }
             }
             
             print("🔍 Semantic search complete: \(filtered.count) results for '\(trimmedQuery)'")
+            return !filtered.isEmpty
         } catch {
-            print("❌ Semantic search error: \(error)")
-            debugPrint("❌ Full error details: \(error)")
-            // Fallback to regular load on error
             isSemanticSearchActive = false
             currentSearchQuery = nil
-            await load()
             lastSearchSignature = nil
+            throw error
         }
     }
 }
