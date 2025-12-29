@@ -26,6 +26,8 @@ final class FeedService: ObservableObject {
     @Published private(set) var feed: [SneakerCard] = []
     @Published private(set) var liked: [SneakerCard] = []
     @Published private(set) var noResultsForFilters: Bool = false
+    @Published private(set) var isSemanticSearchActive: Bool = false
+    @Published private(set) var currentSearchQuery: String?
     
     private var swipedRightIDs: Set<UUID> = []
     private var swipedLeftIDs: Set<UUID> = []
@@ -34,6 +36,7 @@ final class FeedService: ObservableObject {
     private var preferredOffset = 0
     private var exploratoryOffset = 0
     private var isLoadingMore = false
+    private var lastSearchSignature: SearchSignature?
     
     /// Load initial data: swipes + feed + liked list.
     func load() async {
@@ -64,6 +67,7 @@ final class FeedService: ObservableObject {
             // Advance offsets for next page
             preferredOffset += pageSize
             exploratoryOffset += pageSize
+            lastSearchSignature = nil
         } catch {
             debugPrint("FeedService load error: \(error)")
         }
@@ -154,6 +158,77 @@ final class FeedService: ObservableObject {
             debugPrint("Failed to record swipe: \(error)")
         }
     }
+    
+    /// Search sneakers using natural language query
+    /// - Parameters:
+    ///   - query: Natural language search query (e.g., "basketball shoes", "something cool for winter")
+    ///   - gender: Gender filter
+    ///   - priceMin: Minimum price
+    ///   - priceMax: Maximum price
+    func searchWithNaturalLanguage(_ query: String, gender: String?, priceMin: Double, priceMax: Double) async {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
+        
+        // If query is empty, reload normal feed
+        guard !trimmedQuery.isEmpty else {
+            isSemanticSearchActive = false
+            currentSearchQuery = nil
+            await load()
+            return
+        }
+
+        // Skip if the exact same search was just run to avoid redundant network calls
+        let signature = SearchSignature(query: trimmedQuery, gender: gender, priceMin: priceMin, priceMax: priceMax)
+        if let last = lastSearchSignature, last == signature {
+            print("🔁 Skipping semantic search: same query/filters as last run")
+            return
+        }
+        lastSearchSignature = signature
+        
+        do {
+            let searchService = SemanticSearchService()
+            print("🚀 Starting semantic search...")
+            let results = try await searchService.searchSneakers(
+                query: trimmedQuery,
+                gender: gender,
+                priceMin: priceMin,
+                priceMax: priceMax
+            )
+            
+            print("📊 Received \(results.count) results from search service")
+            
+            // Filter out already swiped
+            let filtered = results.filter { 
+                !swipedRightIDs.contains($0.id) && !swipedLeftIDs.contains($0.id) 
+            }
+            
+            print("📊 After filtering swiped: \(filtered.count) results")
+            
+            await MainActor.run {
+                feed = filtered
+                isSemanticSearchActive = true
+                currentSearchQuery = trimmedQuery
+                noResultsForFilters = filtered.isEmpty
+            }
+            
+            print("🔍 Semantic search complete: \(filtered.count) results for '\(trimmedQuery)'")
+        } catch {
+            print("❌ Semantic search error: \(error)")
+            debugPrint("❌ Full error details: \(error)")
+            // Fallback to regular load on error
+            isSemanticSearchActive = false
+            currentSearchQuery = nil
+            await load()
+            lastSearchSignature = nil
+        }
+    }
+}
+
+// Lightweight signature to detect identical semantic searches
+private struct SearchSignature: Equatable {
+    let query: String
+    let gender: String?
+    let priceMin: Double
+    let priceMax: Double
 }
 
 // MARK: - Private helpers
