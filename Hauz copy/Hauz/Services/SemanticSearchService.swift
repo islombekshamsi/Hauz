@@ -1,5 +1,5 @@
 import Foundation
-import Supabase
+import os
 
 // MARK: - Supporting Types
 
@@ -16,8 +16,35 @@ private struct SearchResult: Decodable, Sendable {
 
 // MARK: - Semantic Search Service
 
+struct SemanticSearchConfig: Sendable {
+    let openAIKey: String
+    let supabaseURL: URL
+    let supabaseAPIKey: String
+}
+
+struct SemanticSearchResponse: Sendable {
+    let cards: [SneakerCard]
+    let usedFallback: Bool
+}
+
 /// Service responsible for semantic search using OpenAI embeddings
-final class SemanticSearchService {
+final class SemanticSearchService: @unchecked Sendable {
+    private let config: SemanticSearchConfig
+    private let logger = Logger(subsystem: "Hauz", category: "SemanticSearch")
+    
+    init(config: SemanticSearchConfig) {
+        self.config = config
+    }
+    
+    private nonisolated static func normalizeGender(_ gender: String?) -> String? {
+        guard let g = gender?.trimmingCharacters(in: .whitespacesAndNewlines), !g.isEmpty else { return nil }
+        switch g.lowercased() {
+        case "male", "men", "m": return "men"
+        case "female", "women", "w": return "women"
+        case "unisex", "u": return "unisex"
+        default: return g.lowercased()
+        }
+    }
     
     /// Generate embedding for a user query using OpenAI API
     /// - Parameter query: The natural language search query
@@ -27,7 +54,7 @@ final class SemanticSearchService {
             throw SemanticSearchError.emptyQuery
         }
         
-        let apiKey = AppSecrets.openAIKey // From Secrets.swift
+        let apiKey = config.openAIKey
         let url = URL(string: "https://api.openai.com/v1/embeddings")!
         
         var request = URLRequest(url: url)
@@ -65,7 +92,7 @@ final class SemanticSearchService {
             throw SemanticSearchError.noEmbeddingReturned
         }
         
-        print("✅ Generated embedding with \(embedding.count) dimensions")
+        logger.info("Generated embedding with \(embedding.count, privacy: .public) dimensions")
         return embedding
     }
     
@@ -76,87 +103,116 @@ final class SemanticSearchService {
     ///   - priceMin: Minimum price filter
     ///   - priceMax: Maximum price filter
     /// - Returns: Array of matching sneaker cards sorted by similarity
-    nonisolated func searchSneakers(
+    // Static entrypoint to guarantee there's no accidental actor hop via instance isolation.
+    nonisolated static func searchSneakers(
+        config: SemanticSearchConfig,
         query: String,
         gender: String?,
         priceMin: Double,
         priceMax: Double
-    ) async throws -> [SneakerCard] {
+    ) async throws -> SemanticSearchResponse {
+        let service = SemanticSearchService(config: config)
+        return try await service.searchSneakersImpl(
+            query: query,
+            gender: gender,
+            priceMin: priceMin,
+            priceMax: priceMax
+        )
+    }
+    
+    // Implementation (instance) kept separate for organization/testing.
+    private nonisolated func searchSneakersImpl(
+        query: String,
+        gender: String?,
+        priceMin: Double,
+        priceMax: Double
+    ) async throws -> SemanticSearchResponse {
+        let overallStart = Date()
+        logger.info("searchSneakers() started")
         // Generate embedding for the query
+        let embedStart = Date()
         let embedding = try await generateEmbedding(for: query)
+        logger.info("Embedding step finished in \(Date().timeIntervalSince(embedStart), privacy: .public)s")
         
         // Normalize gender for DB query (Male -> men, Female -> women)
-        let normalizedGender: String? = {
-            guard let gender = gender else { return nil }
-            switch gender.lowercased() {
-            case "male": return "men"
-            case "female": return "women"
-            default: return gender.lowercased()
+        let normalizedGender = Self.normalizeGender(gender)
+        
+        logger.info("Semantic search query='\(query, privacy: .public)' gender='\(normalizedGender ?? "any", privacy: .public)' price=\(priceMin, privacy: .public)-\(priceMax, privacy: .public)")
+        
+        // Keep gender + price strict. Do at most 2 RPC calls to reduce load and avoid server timeouts:
+        // 1) threshold=0.6 (good quality)
+        // 2) fallback threshold=-1 (always return top matches within gender+price)
+        let matchCount = 40
+        
+        func rpcCall(threshold: Double, genderFilter: String?) async throws -> [SearchResult] {
+            let rpcURL = config.supabaseURL.appendingPathComponent("/rest/v1/rpc/search_sneakers_semantic")
+            logger.info("RPC URL: \(rpcURL.absoluteString, privacy: .public)")
+            
+            var request = URLRequest(url: rpcURL)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 30
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let apiKey = config.supabaseAPIKey
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue(apiKey, forHTTPHeaderField: "apikey")
+            
+            // Send embedding as a JSON array of numbers (PostgREST will cast to vector type)
+            let body: [String: Any?] = [
+                "query_embedding": embedding,
+                "match_threshold": threshold,
+                "match_count": matchCount,
+                "gender_filter": genderFilter,
+                "price_min": priceMin,
+                "price_max": priceMax
+            ]
+            
+            let encodeStart = Date()
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
+            } catch {
+                logger.error("Failed to serialize RPC JSON body: \(String(describing: error), privacy: .public)")
+                throw SemanticSearchError.invalidResponse
             }
-        }()
-        
-        print("🔍 Searching with query: '\(query)', gender: \(normalizedGender ?? "any"), price: $\(priceMin)-$\(priceMax)")
-        
-        // Call Supabase RPC via REST to avoid actor isolation issues with the SDK
-        print("🔧 Building RPC URL...")
-        let rpcURL = AppSecrets.supabaseURL.appendingPathComponent("/rest/v1/rpc/search_sneakers_semantic")
-        print("🔧 RPC URL: \(rpcURL.absoluteString)")
-        
-        print("🔧 Creating URLRequest...")
-        var request = URLRequest(url: rpcURL)
-        print("🔧 Setting HTTP method...")
-        request.httpMethod = "POST"
-        print("🔧 Setting timeout...")
-        request.timeoutInterval = 30 // 30 second timeout
-        print("🔧 Setting headers...")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(AppSecrets.supabaseAnonKey)", forHTTPHeaderField: "Authorization")
-        request.setValue(AppSecrets.supabaseAnonKey, forHTTPHeaderField: "apikey")
-        print("🔧 Headers set successfully")
-        
-        print("🔧 Preparing request body dictionary...")
-        let body: [String: Any?] = [
-            "query_embedding": embedding,
-            "match_threshold": 0.7,
-            "match_count": 40,
-            "gender_filter": normalizedGender,
-            "price_min": priceMin,
-            "price_max": priceMax
-        ]
-        print("🔧 Body dictionary created (embedding size: \(embedding.count))")
-        
-        print("🔧 Serializing JSON body...")
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
-            print("🔧 Body size: \(request.httpBody?.count ?? 0) bytes")
-        } catch {
-            print("❌ Failed to serialize JSON: \(error)")
-            throw SemanticSearchError.invalidResponse
-        }
-        
-        print("📡 Sending RPC request to Supabase...")
-        let startTime = Date()
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let duration = Date().timeIntervalSince(startTime)
-        print("⏱️ RPC request completed in \(String(format: "%.2f", duration))s")
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw SemanticSearchError.invalidResponse
-        }
-        
-        guard (200...299).contains(httpResponse.statusCode) else {
-            // Log the error response for debugging
-            if let errorString = String(data: data, encoding: .utf8) {
-                print("❌ Supabase error response: \(errorString)")
+            logger.info("RPC JSON encoded in \(Date().timeIntervalSince(encodeStart), privacy: .public)s (bytes=\(request.httpBody?.count ?? 0, privacy: .public)) threshold=\(threshold, privacy: .public) gender=\(genderFilter ?? "any", privacy: .public)")
+            
+            logger.info("Sending Supabase RPC request...")
+            let rpcStart = Date()
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let rpcDuration = Date().timeIntervalSince(rpcStart)
+            logger.info("Supabase RPC completed in \(rpcDuration, privacy: .public)s (bytes=\(data.count, privacy: .public))")
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw SemanticSearchError.invalidResponse
             }
-            throw SemanticSearchError.apiError(statusCode: httpResponse.statusCode)
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if let errorString = String(data: data, encoding: .utf8) {
+                    logger.error("Supabase error status=\(httpResponse.statusCode, privacy: .public) body=\(errorString, privacy: .public)")
+                }
+                throw SemanticSearchError.apiError(statusCode: httpResponse.statusCode)
+            }
+            
+            let decodeStart = Date()
+            let results = try JSONDecoder().decode([SearchResult].self, from: data)
+            logger.info("Decoded results in \(Date().timeIntervalSince(decodeStart), privacy: .public)s")
+            return results
         }
         
-        let results = try JSONDecoder().decode([SearchResult].self, from: data)
-        print("✅ Found \(results.count) matching sneakers (before filtering swiped)")
+        var results = try await rpcCall(threshold: 0.6, genderFilter: normalizedGender)
+        logger.info("Found \(results.count, privacy: .public) matches at threshold=0.6 gender=\(normalizedGender ?? "any", privacy: .public)")
         
-        // Convert to SneakerCard objects
-        return results.map { result in
+        var usedFallback = false
+        if results.isEmpty {
+            logger.info("0 matches at threshold=0.6; falling back to top matches (threshold=-1, keeping gender+price)")
+            results = try await rpcCall(threshold: -1.0, genderFilter: normalizedGender)
+            logger.info("Fallback returned \(results.count, privacy: .public) matches (gender=\(normalizedGender ?? "any", privacy: .public))")
+            usedFallback = true
+        }
+        
+        logger.info("searchSneakers() total time \(Date().timeIntervalSince(overallStart), privacy: .public)s")
+        
+        let cards = results.map { result in
             SneakerCard(
                 id: result.id,
                 name: result.name,
@@ -167,6 +223,8 @@ final class SemanticSearchService {
                 stockxLink: result.link
             )
         }
+        
+        return SemanticSearchResponse(cards: cards, usedFallback: usedFallback)
     }
 }
 
@@ -183,9 +241,12 @@ enum SemanticSearchError: LocalizedError {
         case .emptyQuery:
             return "Search query cannot be empty"
         case .invalidResponse:
-            return "Invalid response from OpenAI API"
+            return "Invalid response from the server"
         case .apiError(let statusCode):
-            return "OpenAI API error: Status code \(statusCode)"
+            if statusCode == 500 {
+                return "Search timed out on the server. Please try again."
+            }
+            return "Search request failed (status \(statusCode)). Please try again."
         case .noEmbeddingReturned:
             return "No embedding returned from OpenAI"
         case .databaseError(let error):
