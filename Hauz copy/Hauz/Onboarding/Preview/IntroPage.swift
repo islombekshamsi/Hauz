@@ -7,6 +7,7 @@ struct IntroPage: View {
     @State private var currentScrollOffset: CGFloat = 0
     @State private var timer = Timer.publish(every: 0.01, on: .current, in: .default).autoconnect()
     
+    @State private var initialAnimation: Bool = true
     var body: some View {
         ZStack{
             AmbientBackground()
@@ -28,10 +29,15 @@ struct IntroPage: View {
                     currentScrollOffset = newValue
                     
                 }
+                .visualEffect { [initialAnimation] content, proxy in
+                    content
+                        .offset(y: !initialAnimation ?  -(proxy.size.height + 200) : 0)
+                }
                 VStack(spacing: 4){
                     Text("Welcome to")
                         .fontWeight(.semibold)
                         .foregroundStyle(.white.secondary)
+                        .blurOpacityEffect(initialAnimation)
                     
                     Text("Hauz")
                         .font(.largeTitle.bold())
@@ -42,6 +48,8 @@ struct IntroPage: View {
                         .font(.callout)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.secondary)
+                        .blurOpacityEffect(initialAnimation)
+
                 }
                 
                 Button{
@@ -54,15 +62,23 @@ struct IntroPage: View {
                         .padding(.vertical, 12)
                         .background(.white, in: .capsule)
                 }
+                .blurOpacityEffect(initialAnimation)
+
 
             }
             .safeAreaPadding(15)
         }
         
         .onReceive(timer){_ in
-            currentScrollOffset += 0.35
-            scrollPosition.scrollTo(x: currentScrollOffset)
+            //currentScrollOffset += 0.35
+            //scrollPosition.scrollTo(x: currentScrollOffset)
+        }
+        .task{
+            try? await Task.sleep(for: .seconds(0.35))
             
+            withAnimation(.smooth(duration: 0.75, extraBounce: 0)){
+                initialAnimation = true
+            }
         }
     }
         
@@ -117,4 +133,13 @@ struct IntroPage: View {
 
 #Preview {
     IntroPage()
+}
+
+extension View{
+    func blurOpacityEffect(_ show: Bool) -> some View{
+        self
+            .blur(radius: show ? 0 : 2)
+            .opacity(show ? 1 : 0)
+            .scaleEffect(show ? 1 : 0.9)
+    }
 }
