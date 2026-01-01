@@ -143,7 +143,7 @@ struct SneakersView: View {
                         .stacked(at: indexOf(card), in: visibleCards.count)
                     }
                 }
-                .frame(height: 650)
+                .frame(height: 640)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8), value: cards)
                 // No button until the deck is empty
             }
@@ -216,11 +216,11 @@ struct CardView: View {
             VStack(spacing: 0) {
                 // Image section - takes up most of the card
                 imageSection
-                    .frame(height: 350)
+                    .frame(height: 360)
                 
                 // Info section - compact bottom area
                 infoSection
-                    .frame(height: 250)
+                    .frame(height: 200)
             }
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -255,7 +255,7 @@ struct CardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .padding(.top, 60)
         }
-        .frame(width: 360, height: 560)
+        .frame(width: 360, height: 400)
         .offset(x: offset.width, y: offset.height)
         .rotationEffect(.degrees(rotation))
         .gesture(
