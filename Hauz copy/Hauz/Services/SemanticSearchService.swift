@@ -1,3 +1,4 @@
+
 import Foundation
 import os
 
@@ -17,9 +18,9 @@ private struct SearchResult: Decodable, Sendable {
 // MARK: - Semantic Search Service
 
 struct SemanticSearchConfig: Sendable {
-    let openAIKey: String
     let supabaseURL: URL
     let supabaseAPIKey: String
+    // OpenAI key is NO LONGER HERE - it's secure in Edge Function! 🔒
 }
 
 struct SemanticSearchResponse: Sendable {
@@ -46,7 +47,7 @@ final class SemanticSearchService: @unchecked Sendable {
         }
     }
     
-    /// Generate embedding for a user query using OpenAI API
+    /// Generate embedding for a user query using Supabase Edge Function (secure!)
     /// - Parameter query: The natural language search query
     /// - Returns: Array of 1536 floating point numbers representing the embedding
     nonisolated func generateEmbedding(for query: String) async throws -> [Double] {
@@ -54,17 +55,17 @@ final class SemanticSearchService: @unchecked Sendable {
             throw SemanticSearchError.emptyQuery
         }
         
-        let apiKey = config.openAIKey
-        let url = URL(string: "https://api.openai.com/v1/embeddings")!
+        // Call OUR Edge Function instead of OpenAI directly (OpenAI key is server-side now!)
+        let url = config.supabaseURL.appendingPathComponent("/functions/v1/generate-search-embedding")
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(config.supabaseAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
         
-        let payload: [String: Any] = [
-            "model": "text-embedding-3-small",
-            "input": query
+        let payload: [String: String] = [
+            "query": query
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
@@ -76,24 +77,20 @@ final class SemanticSearchService: @unchecked Sendable {
         }
         
         guard httpResponse.statusCode == 200 else {
+            if let errorString = String(data: data, encoding: .utf8) {
+                logger.error("Edge Function error: \(errorString, privacy: .public)")
+            }
             throw SemanticSearchError.apiError(statusCode: httpResponse.statusCode)
         }
         
-        struct EmbeddingResponse: Decodable {
-            struct EmbeddingData: Decodable {
-                let embedding: [Double]
-            }
-            let data: [EmbeddingData]
+        struct EdgeFunctionResponse: Decodable {
+            let embedding: [Double]
         }
         
-        let embeddingResponse = try JSONDecoder().decode(EmbeddingResponse.self, from: data)
+        let embeddingResponse = try JSONDecoder().decode(EdgeFunctionResponse.self, from: data)
         
-        guard let embedding = embeddingResponse.data.first?.embedding else {
-            throw SemanticSearchError.noEmbeddingReturned
-        }
-        
-        logger.info("Generated embedding with \(embedding.count, privacy: .public) dimensions")
-        return embedding
+        logger.info("Generated embedding with \(embeddingResponse.embedding.count, privacy: .public) dimensions")
+        return embeddingResponse.embedding
     }
     
     /// Search sneakers using semantic similarity
@@ -142,7 +139,7 @@ final class SemanticSearchService: @unchecked Sendable {
         // Keep gender + price strict. Do at most 2 RPC calls to reduce load and avoid server timeouts:
         // 1) threshold=0.6 (good quality)
         // 2) fallback threshold=-1 (always return top matches within gender+price)
-        let matchCount = 40
+        let matchCount = 60
         
         func rpcCall(threshold: Double, genderFilter: String?) async throws -> [SearchResult] {
             let rpcURL = config.supabaseURL.appendingPathComponent("/rest/v1/rpc/search_sneakers_semantic")
@@ -254,4 +251,3 @@ enum SemanticSearchError: LocalizedError {
         }
     }
 }
-
