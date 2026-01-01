@@ -1,14 +1,12 @@
-//
-//  IntroPage.swift
-//  Hauz
-//
-//  Created by Islom Shamsiev on 2025/12/29.
-//
-
 import SwiftUI
+import Combine
 
 struct IntroPage: View {
     @State private var activeCard: Card? = cards.first
+    @State private var scrollPosition: ScrollPosition = .init()
+    @State private var currentScrollOffset: CGFloat = 0
+    @State private var timer = Timer.publish(every: 0.01, on: .current, in: .default).autoconnect()
+    
     var body: some View {
         ZStack{
             AmbientBackground()
@@ -20,11 +18,18 @@ struct IntroPage: View {
                     }
                 }
                 .scrollIndicators(.hidden)
+                .scrollPosition($scrollPosition)
                 .containerRelativeFrame(.vertical){ value , _ in
                     value * 0.45
                 }
             }
             .safeAreaPadding(15)
+        }
+        
+        .onReceive(timer){_ in
+            currentScrollOffset += 0.35
+            scrollPosition.scrollTo(x: currentScrollOffset)
+            
         }
     }
         
