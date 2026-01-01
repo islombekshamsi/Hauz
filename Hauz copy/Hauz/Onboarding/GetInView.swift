@@ -32,6 +32,8 @@ struct GetInView: View {
     }
 }
 
+
+
 struct LoginView: View{
     var onComplete: () -> ()
     @Binding var hasProfile: Bool
@@ -47,6 +49,8 @@ struct LoginView: View{
     
     var body: some View{
         Color("HauzLight").ignoresSafeArea(edges: .all)
+        
+        
         VStack(alignment: .leading, spacing: 12){
             VStack(alignment: .leading, spacing: 8){
                 Text("Hello there!")
