@@ -7,7 +7,7 @@ struct IntroPage: View {
     @State private var currentScrollOffset: CGFloat = 0
     @State private var timer = Timer.publish(every: 0.01, on: .current, in: .default).autoconnect()
     
-    @State private var initialAnimation: Bool = true
+    @State private var initialAnimation: Bool = false
     @State private var titleProgress: CGFloat = 0
     @State private var scrollPhase: ScrollPhase = .idle
     var body: some View {
@@ -57,7 +57,12 @@ struct IntroPage: View {
                         .textRenderer(TitleTextRenderer(progress: titleProgress))
                         .padding(.bottom, 12)
                     
-                    Text("Create eautiful invitation for all your events. \nAnyone can receive invitations. Sending included \n with iCloud+.")
+                    Text("Swipe through thousands of sneakers tailored to your style. Find your next grail with AI-powered search. Buy instantly on StockX.")
+                    /*
+                     Stop scrolling through endless sneaker catalogs.
+                     Swipe through curated picks. Search naturally—ask for
+                     "basketball shoes" or "something for summer." Every pair links to StockX.
+                     */
                         .font(.callout)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.secondary)
