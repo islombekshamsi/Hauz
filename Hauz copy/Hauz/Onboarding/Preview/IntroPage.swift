@@ -22,6 +22,39 @@ struct IntroPage: View {
                 .containerRelativeFrame(.vertical){ value , _ in
                     value * 0.45
                 }
+                .onScrollGeometryChange(for: CGFloat.self){
+                    $0.contentOffset.x + $0.contentInsets.leading
+                } action: { oldValue, newValue in
+                    currentScrollOffset = newValue
+                    
+                }
+                VStack(spacing: 4){
+                    Text("Welcome to")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white.secondary)
+                    
+                    Text("Hauz")
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.white)
+                        .padding(.bottom, 12)
+                    
+                    Text("Create eautiful invitation for all your events. \nAnyone can receive invitations. Sending included \n with iCloud+.")
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.secondary)
+                }
+                
+                Button{
+                    
+                } label: {
+                    Text("Create Event")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 12)
+                        .background(.white, in: .capsule)
+                }
+
             }
             .safeAreaPadding(15)
         }
