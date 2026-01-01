@@ -9,9 +9,11 @@ struct IntroPage: View {
     
     @State private var initialAnimation: Bool = true
     @State private var titleProgress: CGFloat = 0
+    @State private var scrollPhase: ScrollPhase = .idle
     var body: some View {
         ZStack{
             AmbientBackground()
+                .animation(.easeInOut(duration: 1), value: activeCard)
             
             VStack(spacing: 40){
                 InfiniteScrollView{
@@ -21,13 +23,22 @@ struct IntroPage: View {
                 }
                 .scrollIndicators(.hidden)
                 .scrollPosition($scrollPosition)
+                .scrollClipDisabled()
                 .containerRelativeFrame(.vertical){ value , _ in
                     value * 0.45
                 }
+                .onScrollPhaseChange({ oldPhase, newPhase in
+                    scrollPhase = newPhase
+                })
                 .onScrollGeometryChange(for: CGFloat.self){
                     $0.contentOffset.x + $0.contentInsets.leading
                 } action: { oldValue, newValue in
                     currentScrollOffset = newValue
+                    
+                    if scrollPhase != .decelerating || scrollPhase != .animating{
+                        let activeIndex = Int((currentScrollOffset / 220).rounded()) % cards.count
+                        activeCard = cards[activeIndex]
+                    }
                     
                 }
                 .visualEffect { [initialAnimation] content, proxy in
@@ -55,6 +66,9 @@ struct IntroPage: View {
                 }
                 
                 Button{
+                    timer.upstream.connect().cancel()
+                    
+                    // my code:
                     
                 } label: {
                     Text("Create Event")
