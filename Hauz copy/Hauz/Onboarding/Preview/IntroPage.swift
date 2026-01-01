@@ -112,22 +112,31 @@ struct IntroPage: View {
         GeometryReader{
             let size = $0.size
             ZStack{
-                ForEach(cards){card in
-                    Image(card.image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .ignoresSafeArea()
-                        .frame(width: size.width, height: size.height)
-                        .opacity(activeCard?.id == card.id ? 1 : 0)
-                }
-                
-                Rectangle()
-                    .fill(.black.opacity(0.45))
+                // Base background color
+                Color("HauzBg")
                     .ignoresSafeArea()
+                
+                // Lava lamp blobs
+                LavaLampBlob(size: size, delay: 0, offsetMultiplier: 1.0, scale: 1.2)
+                LavaLampBlob(size: size, delay: 2, offsetMultiplier: -0.8, scale: 0.9)
+                LavaLampBlob(size: size, delay: 4, offsetMultiplier: 1.2, scale: 1.1)
+                LavaLampBlob(size: size, delay: 6, offsetMultiplier: -1.0, scale: 0.8)
             }
-            .compositingGroup()
-            .blur(radius: 90, opaque: true)
-            .ignoresSafeArea()
+        }
+    }
+    
+    @ViewBuilder
+    private func LavaLampBlob(size: CGSize, delay: Double, offsetMultiplier: Double, scale: Double) -> some View {
+        TimelineView(.animation) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate + delay
+            let x = sin(time * 0.3 * offsetMultiplier) * (size.width * 0.3)
+            let y = cos(time * 0.4 * offsetMultiplier) * (size.height * 0.3)
+            
+            Circle()
+                .fill(Color("HauzFocus"))
+                .frame(width: 300 * scale, height: 300 * scale)
+                .blur(radius: 60)
+                .offset(x: x, y: y)
         }
     }
     
