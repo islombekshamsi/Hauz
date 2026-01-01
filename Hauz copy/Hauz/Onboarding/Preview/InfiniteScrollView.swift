@@ -45,3 +45,53 @@ struct InfiniteScrollView<Content: View>: View {
 #Preview{
     PreviewOutlook()
 }
+
+fileprivate struct InfiniteScrollHelper: UIViewRepresentable{
+    @Binding var contentSize: CGSize
+    @Binding var declarationRate: UIScrollView.DecelerationRate
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(declarationRate: declarationRate, contentSize: contentSize)
+    }
+    func makeUIView(context: Context) -> some UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        
+        DispatchQueue.main.async{
+            if let scrollView = view.scrollView{
+                
+            }
+        }
+        
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIViewType, context: Context) {
+        context.coordinator.declarationRate = declarationRate
+    }
+    
+    class Coordinator: NSObject, UIScrollViewDelegate{
+        var declarationRate: UIScrollView.DecelerationRate
+        var contentSize: CGSize
+        
+        init(declarationRate: UIScrollView.DecelerationRate, contentSize: CGSize) {
+            self.declarationRate = declarationRate
+            self.contentSize = contentSize
+        }
+        
+        weak var defaultDelegate: UIScrollViewDelegate?
+        
+        func scrollViewDidScroll(_ scrollView: UIScrollView){
+            
+        }
+    }
+}
+
+extension UIView{
+    var scrollView: UIScrollView?{
+        if let superview, superview is UIScrollView{
+            return superview as? UIScrollView
+        }
+        return superview?.scrollView
+    }
+}
