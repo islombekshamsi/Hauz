@@ -68,6 +68,7 @@ fileprivate struct InfiniteScrollHelper: UIViewRepresentable{
     
     func updateUIView(_ uiView: UIViewType, context: Context) {
         context.coordinator.declarationRate = declarationRate
+        context.coordinator.contentSize = contentSize
     }
     
     class Coordinator: NSObject, UIScrollViewDelegate{
@@ -82,7 +83,33 @@ fileprivate struct InfiniteScrollHelper: UIViewRepresentable{
         weak var defaultDelegate: UIScrollViewDelegate?
         
         func scrollViewDidScroll(_ scrollView: UIScrollView){
+            let minX =  scrollView.contentOffset.x
             
+            if minX > contentSize.width{
+                scrollView.contentOffset.x -= contentSize.width
+            }
+            
+            if minX < 0{
+                scrollView.contentOffset.x += contentSize.width
+            }
+            
+            defaultDelegate?.scrollViewDidScroll?(scrollView)
+        }
+        
+        func scrollViiewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool){
+            defaultDelegate?.scrollViewDidEndDragging?(scrollView, willDecelerate: decelerate)
+        }
+        
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            defaultDelegate?.scrollViewDidEndDecelerating?(scrollView)
+        }
+        
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            defaultDelegate?.scrollViewWillBeginDragging?(scrollView)
+        }
+        
+        func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+            defaultDelegate?.scrollViewWillEndDragging?(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
         }
     }
 }
