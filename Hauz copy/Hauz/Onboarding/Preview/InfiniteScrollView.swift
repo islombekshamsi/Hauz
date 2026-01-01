@@ -37,6 +37,7 @@ struct InfiniteScrollView<Content: View>: View {
                     
                 }
             }
+            .background(InfiniteScrollHelper(contentSize: $contentSize, declarationRate: .constant(.fast)))
         }
     }
     }
@@ -59,7 +60,9 @@ fileprivate struct InfiniteScrollHelper: UIViewRepresentable{
         
         DispatchQueue.main.async{
             if let scrollView = view.scrollView{
-                
+                context.coordinator.defaultDelegate = scrollView.delegate
+                scrollView.decelerationRate = declarationRate
+                scrollView.delegate = context.coordinator
             }
         }
         
@@ -83,6 +86,9 @@ fileprivate struct InfiniteScrollHelper: UIViewRepresentable{
         weak var defaultDelegate: UIScrollViewDelegate?
         
         func scrollViewDidScroll(_ scrollView: UIScrollView){
+            scrollView.decelerationRate = declarationRate
+            
+            
             let minX =  scrollView.contentOffset.x
             
             if minX > contentSize.width{
