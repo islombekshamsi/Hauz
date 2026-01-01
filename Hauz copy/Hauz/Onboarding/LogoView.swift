@@ -11,6 +11,7 @@ import PostgREST
 
 struct SplashScreenView: View {
     @State private var isActive = false
+    @State private var showIntro = false  // NEW: Show intro page after logo
     @State private var logoScale: CGFloat = 0.7
     @State private var logoOpacity: Double = 0.0
     @State private var isCheckingSession = true
@@ -25,6 +26,16 @@ struct SplashScreenView: View {
                     .onAppear {
                         startAuthStateListener()
                     }
+            } else if showIntro {
+                // NEW: Show IntroPage after logo splash
+                IntroPageWrapper(
+                    isLoggedIn: $isLoggedIn,
+                    hasProfile: $hasProfile,
+                    onGetStarted: {
+                        showIntro = false
+                        startAuthStateListener()
+                    }
+                )
             } else {
                 GetInView(initialLoginState: isLoggedIn, initialProfileState: hasProfile)
                     .onAppear {
@@ -48,9 +59,13 @@ struct SplashScreenView: View {
                     // Wait for minimum splash duration (so logo is visible)
                     try? await Task.sleep(for: .seconds(1.5))
                     
-                    // Transition to main app
+                    // Transition to intro page or main app
                     await MainActor.run {
                         withAnimation(.easeInOut(duration: 0.6)) {
+                            if !isLoggedIn {
+                                // First time user -> show intro
+                                showIntro = true
+                            }
                             isActive = true
                         }
                     }
@@ -64,7 +79,7 @@ struct SplashScreenView: View {
         
         // Start listening for auth state changes
         authStateTask = Task {
-            for await state in await supabase.auth.authStateChanges {
+            for await state in supabase.auth.authStateChanges {
                 switch state.event {
                 case .signedOut:
                     await MainActor.run {
@@ -163,6 +178,42 @@ struct LogoView: View {
                     .foregroundColor(Color("HauzFocus"))
                     .scaleEffect(logoScale)
                     .opacity(logoOpacity)
+            }
+        }
+    }
+}
+
+// Wrapper for IntroPage that handles the "Get Started" action
+struct IntroPageWrapper: View {
+    @Binding var isLoggedIn: Bool
+    @Binding var hasProfile: Bool
+    let onGetStarted: () -> Void
+    
+    @State private var showGetIn = false
+    @State private var introOffset: CGFloat = 0
+    @State private var getInOffset: CGFloat = UIScreen.main.bounds.width
+    
+    var body: some View {
+        ZStack {
+            // IntroPage - slides to the left
+            IntroPageWithAction(onGetStarted: {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) {
+                    introOffset = -UIScreen.main.bounds.width
+                    getInOffset = 0
+                }
+                
+                // Update state after animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                    showGetIn = true
+                    onGetStarted()
+                }
+            })
+            .offset(x: introOffset)
+            
+            // GetInView - slides in from the right
+            if getInOffset < UIScreen.main.bounds.width || showGetIn {
+                GetInView(initialLoginState: isLoggedIn, initialProfileState: hasProfile)
+                    .offset(x: getInOffset)
             }
         }
     }
