@@ -8,6 +8,7 @@ struct IntroPage: View {
     @State private var timer = Timer.publish(every: 0.01, on: .current, in: .default).autoconnect()
     
     @State private var initialAnimation: Bool = true
+    @State private var titleProgress: CGFloat = 0
     var body: some View {
         ZStack{
             AmbientBackground()
@@ -42,6 +43,7 @@ struct IntroPage: View {
                     Text("Hauz")
                         .font(.largeTitle.bold())
                         .foregroundStyle(.white)
+                        .textRenderer(TitleTextRenderer(progress: titleProgress))
                         .padding(.bottom, 12)
                     
                     Text("Create eautiful invitation for all your events. \nAnyone can receive invitations. Sending included \n with iCloud+.")
@@ -70,14 +72,18 @@ struct IntroPage: View {
         }
         
         .onReceive(timer){_ in
-            //currentScrollOffset += 0.35
-            //scrollPosition.scrollTo(x: currentScrollOffset)
+            currentScrollOffset += 0.35
+            scrollPosition.scrollTo(x: currentScrollOffset)
         }
         .task{
             try? await Task.sleep(for: .seconds(0.35))
             
             withAnimation(.smooth(duration: 0.75, extraBounce: 0)){
                 initialAnimation = true
+            }
+            
+            withAnimation(.smooth(duration: 2.5, extraBounce:0).delay(0.3)){
+                titleProgress = 1
             }
         }
     }
