@@ -8,15 +8,13 @@ struct SwiftUIView: View {
                     ForEach(1...100, id: \.self){_ in
                         Rectangle()
                             .fill(.black)
-                            .frame(height: 50)
+                            .frame(height: 320)
                             .swipeActions{
                                 Action(symbolImage: "square.and.arrow.up.fill", tint: .white, background: .blue) { resetPosition in
                                     resetPosition.toggle()
                                 }
                                 
-                                Action(symbolImage: "square.and.arrow.down.fill", tint: .white, background: .purple) { resetPosition in
-                                    
-                                }
+        
                                 
                                 Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
                                     
