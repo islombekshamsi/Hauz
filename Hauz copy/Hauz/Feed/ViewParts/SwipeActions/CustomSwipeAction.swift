@@ -7,7 +7,7 @@ struct Action: Identifiable{
     var background: Color
     
     var font: Font = .title3
-    var size: CGSize = .init(width: 45 ,height: 45)
+    var size: CGSize = .init(width: 80 ,height: 80)
     var shape: some Shape = .circle
     var action: (inout Bool) -> ()
 }
