@@ -310,3 +310,7 @@ Once you complete Steps 1-3, your users can search for sneakers using natural la
 The AI will understand the intent and return relevant results! 🚀
 
 
+
+
+
+
