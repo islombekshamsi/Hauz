@@ -14,10 +14,10 @@ struct SwiftUIView: View {
                                     resetPosition.toggle()
                                 }
                                 
-        
-                                
+                                // 🔥 DELETE BUTTON - Swipe more to see it expand like a bubble!
                                 Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
-                                    
+                                    // Delete action
+                                    resetPosition.toggle()
                                 }
                             }
                     }
