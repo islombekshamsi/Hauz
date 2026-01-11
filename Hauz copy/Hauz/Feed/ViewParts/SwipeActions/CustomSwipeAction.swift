@@ -101,53 +101,55 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier{
     @ViewBuilder
     func ActionsView() -> some View{
         HStack(spacing: config.spacing) {
-            // Other buttons (blue share, etc.)
-            ForEach(actions.indices.dropLast(), id: \.self){ index in
+            ForEach(actions.indices, id: \.self) { index in
                 let action = actions[index]
+                let isLastAction = index == actions.count - 1
                 
-                Button {
-                    action.action(&resetPositionTrigger)
-                } label: {
-                    Image(systemName: action.symbolImage)
-                        .font(action.font)
-                        .foregroundStyle(action.tint)
-                        .frame(width: action.size.width, height: action.size.height)
-                        .background(action.background, in: action.shape)
-                }
-            }
-            
-            // Expanding delete button (last button) - grows horizontally
-            if actions.count > 0 {
-                let lastAction = actions[actions.count - 1]
-                let buttonWidth = lastAction.size.width + (deleteButtonExpansion * 200)
-                
-                Button {
-                    // Auto-expand delete animation
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        deleteButtonExpansion = 1.0
-                        offsetX = -maxOffsetWidth * 1.5
-                    }
-                    // Then trigger delete
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        lastAction.action(&resetPositionTrigger)
-                    }
-                } label: {
-                    HStack(spacing: 0) {
-                        // Expanding left side
-                        if deleteButtonExpansion > 0 {
-                            Spacer()
-                                .frame(width: deleteButtonExpansion * 200)
+                if isLastAction {
+                    // 🔥 DELETE BUTTON - Expands horizontally like iMessage
+                    let buttonWidth = action.size.width + (deleteButtonExpansion * 180)
+                    let cornerRadius = action.size.height / 2
+                    
+                    Button {
+                        // Tap to trigger auto-expand + delete
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            deleteButtonExpansion = 1.0
+                            offsetX = -maxOffsetWidth * 1.5
                         }
-                        // Icon stays centered in original button area
-                        Image(systemName: lastAction.symbolImage)
-                            .font(lastAction.font)
-                            .foregroundStyle(lastAction.tint)
-                            .frame(width: lastAction.size.width, height: lastAction.size.height)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            action.action(&resetPositionTrigger)
+                        }
+                    } label: {
+                        ZStack {
+                            // Background that expands
+                            RoundedRectangle(cornerRadius: cornerRadius)
+                                .fill(action.background)
+                                .frame(width: buttonWidth, height: action.size.height)
+                            
+                            // Icon stays on the right
+                            HStack(spacing: -10) {
+                                Spacer()
+                                Image(systemName: action.symbolImage)
+                                    .font(action.font)
+                                    .foregroundStyle(action.tint)
+                                    .frame(width: action.size.width)
+                            }
+                            .frame(width: buttonWidth, height: action.size.height)
+                        }
                     }
-                    .frame(width: buttonWidth, height: lastAction.size.height)
-                    .background(lastAction.background, in: RoundedRectangle(cornerRadius: lastAction.size.height / 2))
+                    .frame(height: action.size.height)
+                } else {
+                    // Regular button (non-expanding)
+                    Button {
+                        action.action(&resetPositionTrigger)
+                    } label: {
+                        Image(systemName: action.symbolImage)
+                            .font(action.font)
+                            .foregroundStyle(action.tint)
+                            .frame(width: action.size.width, height: action.size.height)
+                            .background(action.background, in: action.shape)
+                    }
                 }
-                .frame(height: lastAction.size.height)
             }
         }
         .padding(.trailing, config.trailingPadding)
@@ -164,12 +166,15 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier{
         progress = -offsetX/maxOffsetWidth
         
         // Calculate delete button horizontal expansion (iMessage style)
-        let expansionThreshold = maxOffsetWidth * 0.85
+        // Start expanding earlier for smoother feel
+        let expansionThreshold = maxOffsetWidth * 0.75
         if -offsetX > expansionThreshold {
-            // Start expanding horizontally when swiped past threshold
+            // Smooth expansion curve
             let extraDistance = -offsetX - expansionThreshold
-            deleteButtonExpansion = min(extraDistance / (maxOffsetWidth * 0.3), 1.0)
-            shouldAutoDelete = deleteButtonExpansion > 0.8
+            let expansionRange = maxOffsetWidth * 0.5
+            deleteButtonExpansion = min(extraDistance / expansionRange, 1.0)
+            // Trigger auto-delete at 85% expansion
+            shouldAutoDelete = deleteButtonExpansion > 0.85
         } else {
             deleteButtonExpansion = 0
             shouldAutoDelete = false
@@ -181,28 +186,29 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier{
     private func gestureDidEnded(translation: CGSize, velocity: CGSize){
         let endTarget = velocity.width + offsetX
         
-        withAnimation(.snappy(duration: 0.3, extraBounce: 0)){
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)){
             // Auto-delete if expanded far enough (iMessage style)
-            if shouldAutoDelete || deleteButtonExpansion > 0.8 {
+            if shouldAutoDelete || deleteButtonExpansion > 0.85 {
                 // Trigger delete action
                 if actions.count > 0 {
                     // Full expansion animation before deleting
                     deleteButtonExpansion = 1.0
                     offsetX = -maxOffsetWidth * 1.5
                     
-                    // Execute delete action after animation
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    // Execute delete action after smooth animation
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         actions[actions.count - 1].action(&resetPositionTrigger)
                     }
                 }
             }
-            // Standard swipe behavior
-            else if -endTarget > (maxOffsetWidth * 0.6) {
+            // Standard swipe behavior - snap to revealed position
+            else if -endTarget > (maxOffsetWidth * 0.5) {
                 offsetX = -maxOffsetWidth
                 bounceOffset = 0
                 progress = 1
                 deleteButtonExpansion = 0
             } else {
+                // Snap back to closed
                 reset()
             }
         }
