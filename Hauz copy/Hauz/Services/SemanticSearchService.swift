@@ -26,6 +26,13 @@ struct SemanticSearchConfig: Sendable {
 struct SemanticSearchResponse: Sendable {
     let cards: [SneakerCard]
     let usedFallback: Bool
+    let searchType: SearchType
+}
+
+enum SearchType: String, Sendable {
+    case semantic = "semantic"
+    case hybrid = "hybrid"
+    case filterOnly = "filter"
 }
 
 /// Service responsible for semantic search using OpenAI embeddings
@@ -219,7 +226,168 @@ final class SemanticSearchService: @unchecked Sendable {
             )
         }
         
-        return SemanticSearchResponse(cards: cards, usedFallback: usedFallback)
+        return SemanticSearchResponse(cards: cards, usedFallback: usedFallback, searchType: .semantic)
+    }
+    
+    // MARK: - Hybrid Search (Semantic + Filter Embeddings)
+    
+    /// Search sneakers using BOTH semantic and filter embeddings for maximum accuracy
+    /// This combines general search ("basketball shoes") with attribute search (comfort, style, etc.)
+    nonisolated static func searchSneakersHybrid(
+        config: SemanticSearchConfig,
+        query: String,
+        gender: String?,
+        priceMin: Double,
+        priceMax: Double,
+        semanticWeight: Double = 0.5,
+        filterWeight: Double = 0.5
+    ) async throws -> SemanticSearchResponse {
+        let service = SemanticSearchService(config: config)
+        return try await service.searchSneakersHybridImpl(
+            query: query,
+            gender: gender,
+            priceMin: priceMin,
+            priceMax: priceMax,
+            semanticWeight: semanticWeight,
+            filterWeight: filterWeight
+        )
+    }
+    
+    private nonisolated func searchSneakersHybridImpl(
+        query: String,
+        gender: String?,
+        priceMin: Double,
+        priceMax: Double,
+        semanticWeight: Double,
+        filterWeight: Double
+    ) async throws -> SemanticSearchResponse {
+        let overallStart = Date()
+        logger.info("🎯 Hybrid search started: '\(query, privacy: .public)'")
+        
+        // Generate BOTH embeddings
+        let semanticEmbedding = try await generateEmbedding(for: query)
+        
+        // For filter embedding, enhance the query with attribute keywords
+        let filterQuery = enhanceQueryForFilters(query)
+        let filterEmbedding = try await generateEmbedding(for: filterQuery)
+        
+        logger.info("📊 Generated both embeddings in \(Date().timeIntervalSince(overallStart), privacy: .public)s")
+        
+        // Normalize gender
+        let normalizedGender = Self.normalizeGender(gender)
+        
+        // Call hybrid search RPC
+        let rpcURL = config.supabaseURL.appendingPathComponent("/rest/v1/rpc/search_sneakers_hybrid")
+        
+        var request = URLRequest(url: rpcURL)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("keep-alive", forHTTPHeaderField: "Connection")
+        
+        let apiKey = config.supabaseAPIKey
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(apiKey, forHTTPHeaderField: "apikey")
+        
+        let body: [String: Any?] = [
+            "semantic_query_embedding": semanticEmbedding,
+            "filter_query_embedding": filterEmbedding,
+            "match_count": 40,
+            "semantic_weight": semanticWeight,
+            "filter_weight": filterWeight,
+            "gender_filter": normalizedGender,
+            "price_min": priceMin,
+            "price_max": priceMax
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let rpcStart = Date()
+        let (data, response) = try await URLSession.shared.data(for: request)
+        logger.info("⚡ Hybrid RPC completed in \(Date().timeIntervalSince(rpcStart), privacy: .public)s")
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SemanticSearchError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if let errorString = String(data: data, encoding: .utf8) {
+                logger.error("Hybrid search error: \(errorString, privacy: .public)")
+            }
+            throw SemanticSearchError.apiError(statusCode: httpResponse.statusCode)
+        }
+        
+        struct HybridResult: Decodable {
+            let id: UUID
+            let name: String
+            let brand: String?
+            let image_url: String?
+            let retail_price: Double?
+            let gender: String?
+            let link: String?
+            let semantic_similarity: Double
+            let filter_similarity: Double
+            let combined_score: Double
+        }
+        
+        let results = try JSONDecoder().decode([HybridResult].self, from: data)
+        logger.info("🎯 Hybrid search found \(results.count, privacy: .public) results")
+        
+        let cards = results.map { result in
+            SneakerCard(
+                id: result.id,
+                name: result.name,
+                brand: result.brand ?? "Unknown",
+                price: result.retail_price,
+                imageURL: result.image_url.flatMap(URL.init),
+                gender: result.gender,
+                stockxLink: result.link
+            )
+        }
+        
+        logger.info("✅ Total hybrid search time: \(Date().timeIntervalSince(overallStart), privacy: .public)s")
+        return SemanticSearchResponse(cards: cards, usedFallback: false, searchType: .hybrid)
+    }
+    
+    /// Enhance query with filter-relevant keywords for better attribute matching
+    private nonisolated func enhanceQueryForFilters(_ query: String) -> String {
+        let lowercased = query.lowercased()
+        var enhanced = query
+        
+        // Add activity-related keywords
+        if lowercased.contains("basketball") || lowercased.contains("hoop") {
+            enhanced += " high-top athletic performance court sports"
+        } else if lowercased.contains("running") || lowercased.contains("run") {
+            enhanced += " lightweight breathable cushioning responsive cardio"
+        } else if lowercased.contains("casual") || lowercased.contains("everyday") {
+            enhanced += " versatile comfortable lifestyle streetwear daily"
+        } else if lowercased.contains("gym") || lowercased.contains("training") {
+            enhanced += " support stability workout cross-training athletic"
+        }
+        
+        // Add style keywords
+        if lowercased.contains("retro") || lowercased.contains("vintage") || lowercased.contains("classic") {
+            enhanced += " nostalgic heritage timeless throwback"
+        } else if lowercased.contains("modern") || lowercased.contains("sleek") {
+            enhanced += " contemporary minimalist streamlined"
+        }
+        
+        // Add comfort/feature keywords
+        if lowercased.contains("comfortable") || lowercased.contains("comfort") {
+            enhanced += " cushioning padded soft plush"
+        } else if lowercased.contains("cool") || lowercased.contains("stylish") {
+            enhanced += " fashionable trendy statement bold"
+        }
+        
+        // Add season keywords
+        if lowercased.contains("winter") || lowercased.contains("cold") {
+            enhanced += " warm insulated weatherproof durable"
+        } else if lowercased.contains("summer") {
+            enhanced += " breathable lightweight mesh airy"
+        }
+        
+        return enhanced
     }
 }
 
