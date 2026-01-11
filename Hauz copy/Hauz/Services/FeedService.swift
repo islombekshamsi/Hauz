@@ -12,6 +12,7 @@ struct SneakerCard: Identifiable, Hashable {
     let imageURL: URL?
     let gender: String?
     let stockxLink: String?
+    var isPinned: Bool = false
 }
 
 /// DTO for a swipe event
@@ -256,6 +257,21 @@ final class FeedService: ObservableObject {
             self.liked.removeAll { $0.id == sneakerID }
         }
     }
+    
+    /// Update pinned status for a liked shoe
+    nonisolated func updatePinStatus(sneakerID: UUID, isPinned: Bool) async throws {
+        let session = try await supabase.auth.session
+        struct Payload: Encodable {
+            let is_pinned: Bool
+        }
+        let payload = Payload(is_pinned: isPinned)
+        _ = try await supabase
+            .from("user_swipes")
+            .update(payload)
+            .eq("user_id", value: session.user.id)
+            .eq("sneaker_id", value: sneakerID)
+            .execute()
+    }
 }
 
 // Lightweight signature to detect identical semantic searches
@@ -306,11 +322,12 @@ private extension FeedService {
         let session = try await supabase.auth.session
         struct Row: Decodable {
             let sneaker_id: UUID
+            let is_pinned: Bool?
             let sneakers_only: SneakerRow
         }
         let rows: [Row] = try await supabase
             .from("user_swipes")
-            .select("sneaker_id, direction, sneakers_only!inner (id, name, brand, image_url, retail_price, gender, link)")
+            .select("sneaker_id, direction, is_pinned, sneakers_only!inner (id, name, brand, image_url, retail_price, gender, link)")
             .eq("user_id", value: session.user.id)
             .eq("direction", value: "right")
             .execute()
@@ -324,7 +341,8 @@ private extension FeedService {
                 price: row.sneakers_only.retail_price,
                 imageURL: row.sneakers_only.image_url.flatMap(URL.init),
                 gender: row.sneakers_only.gender,
-                stockxLink: row.sneakers_only.link
+                stockxLink: row.sneakers_only.link,
+                isPinned: row.is_pinned ?? false
             )
         }
     }
