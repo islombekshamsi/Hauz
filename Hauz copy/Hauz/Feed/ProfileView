@@ -42,6 +42,14 @@ struct ProfileView: View {
                                 FlippableShoeCard(card: shoe, onTogglePin: {
                                     togglePin(for: shoe)
                                 })
+                                .swipeActions {
+                                    Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
+                                        resetPosition.toggle()
+                                        Task {
+                                            await removeShoe(shoe)
+                                        }
+                                    }
+                                }
                             }
                             
                             // Then show unpinned shoes
@@ -49,6 +57,14 @@ struct ProfileView: View {
                                 FlippableShoeCard(card: shoe, onTogglePin: {
                                     togglePin(for: shoe)
                                 })
+                                .swipeActions {
+                                    Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
+                                        resetPosition.toggle()
+                                        Task {
+                                            await removeShoe(shoe)
+                                        }
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 16)
@@ -97,6 +113,25 @@ struct ProfileView: View {
             if let index = likedShoes.firstIndex(where: { $0.id == card.id }) {
                 likedShoes[index].isPinned.toggle()
             }
+        }
+    }
+    
+    // Remove shoe from liked collection
+    private func removeShoe(_ shoe: LikedShoeData) async {
+        do {
+            // Delete from database
+            try await feedService.unlikeShoe(sneakerID: shoe.id)
+            
+            // Remove from local UI with animation
+            await MainActor.run {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    likedShoes.removeAll { $0.id == shoe.id }
+                }
+            }
+            
+            print("✅ Removed \(shoe.shoeName) from liked collection")
+        } catch {
+            debugPrint("❌ Failed to remove shoe: \(error)")
         }
     }
     
@@ -463,4 +498,34 @@ struct FilterCircle: View {
 
 #Preview {
     ProfileView()
+}
+
+extension View {
+    func disableWithOpacity(_ condition: Bool) -> some View {
+        self.disabled(condition).opacity(condition ? 0.5 : 1)
+    }
+    func hAlign(_ alignment: Alignment) -> some View {
+        self.frame(maxWidth: .infinity, alignment: alignment)
+    }
+    func vAlign(_ alignment: Alignment) -> some View {
+        self.frame(maxHeight: .infinity, alignment: alignment)
+    }
+    func border(_ width: CGFloat, _ color: Color) -> some View {
+        self
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(color, lineWidth: width)
+            }
+    }
+    func fillView(_ color: Color) -> some View {
+        self
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(color)
+            }
+    }
 }
