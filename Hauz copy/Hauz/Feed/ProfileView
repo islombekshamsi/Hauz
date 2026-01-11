@@ -112,6 +112,23 @@ struct ProfileView: View {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
             if let index = likedShoes.firstIndex(where: { $0.id == card.id }) {
                 likedShoes[index].isPinned.toggle()
+                let newPinState = likedShoes[index].isPinned
+                
+                // Persist to database
+                Task {
+                    do {
+                        try await feedService.updatePinStatus(sneakerID: card.id, isPinned: newPinState)
+                        print("✅ Updated pin status for \(card.shoeName): \(newPinState)")
+                    } catch {
+                        debugPrint("❌ Failed to update pin status: \(error)")
+                        // Revert on error
+                        await MainActor.run {
+                            if let idx = likedShoes.firstIndex(where: { $0.id == card.id }) {
+                                likedShoes[idx].isPinned.toggle()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -183,7 +200,7 @@ private extension ProfileView {
                         imageURL: card.imageURL,
                         priceTrendIsUp: true,
                         priceChangePercentage: 1.0,
-                        isPinned: false,
+                        isPinned: card.isPinned,
                         stockxLink: card.stockxLink
                     )
                 }
