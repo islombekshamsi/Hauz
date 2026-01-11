@@ -136,19 +136,16 @@ final class SemanticSearchService: @unchecked Sendable {
         
         logger.info("Semantic search query='\(query, privacy: .public)' gender='\(normalizedGender ?? "any", privacy: .public)' price=\(priceMin, privacy: .public)-\(priceMax, privacy: .public)")
         
-        // Keep gender + price strict. Do at most 2 RPC calls to reduce load and avoid server timeouts:
-        // 1) threshold=0.6 (good quality)
-        // 2) fallback threshold=-1 (always return top matches within gender+price)
-        let matchCount = 60
         
-        func rpcCall(threshold: Double, genderFilter: String?) async throws -> [SearchResult] {
+        func rpcCall(threshold: Double, genderFilter: String?, requestedCount: Int) async throws -> [SearchResult] {
             let rpcURL = config.supabaseURL.appendingPathComponent("/rest/v1/rpc/search_sneakers_semantic")
-            logger.info("RPC URL: \(rpcURL.absoluteString, privacy: .public)")
             
             var request = URLRequest(url: rpcURL)
             request.httpMethod = "POST"
-            request.timeoutInterval = 30
+            request.timeoutInterval = 10  // Reduced from 30s - faster fail if slow
+            request.cachePolicy = .reloadIgnoringLocalCacheData  // Don't cache POST requests
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("keep-alive", forHTTPHeaderField: "Connection")  // Connection reuse
             
             let apiKey = config.supabaseAPIKey
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -158,7 +155,7 @@ final class SemanticSearchService: @unchecked Sendable {
             let body: [String: Any?] = [
                 "query_embedding": embedding,
                 "match_threshold": threshold,
-                "match_count": matchCount,
+                "match_count": requestedCount,
                 "gender_filter": genderFilter,
                 "price_min": priceMin,
                 "price_max": priceMax
@@ -196,13 +193,14 @@ final class SemanticSearchService: @unchecked Sendable {
             return results
         }
         
-        var results = try await rpcCall(threshold: 0.6, genderFilter: normalizedGender)
+        // SPEED: Try with 40 results first (faster), fallback to 60 if needed
+        var results = try await rpcCall(threshold: 0.6, genderFilter: normalizedGender, requestedCount: 40)
         logger.info("Found \(results.count, privacy: .public) matches at threshold=0.6 gender=\(normalizedGender ?? "any", privacy: .public)")
         
         var usedFallback = false
         if results.isEmpty {
             logger.info("0 matches at threshold=0.6; falling back to top matches (threshold=-1, keeping gender+price)")
-            results = try await rpcCall(threshold: -1.0, genderFilter: normalizedGender)
+            results = try await rpcCall(threshold: -1.0, genderFilter: normalizedGender, requestedCount: 60)
             logger.info("Fallback returned \(results.count, privacy: .public) matches (gender=\(normalizedGender ?? "any", privacy: .public))")
             usedFallback = true
         }
