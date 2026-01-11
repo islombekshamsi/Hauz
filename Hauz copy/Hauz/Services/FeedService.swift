@@ -191,7 +191,6 @@ final class FeedService: ObservableObject {
         do {
             // Capture config on the MainActor.
             let config = SemanticSearchConfig(
-                openAIKey: AppSecrets.openAIKey,
                 supabaseURL: AppSecrets.supabaseURL,
                 supabaseAPIKey: AppSecrets.supabaseAnonKey
             )
@@ -209,8 +208,8 @@ final class FeedService: ObservableObject {
             print("📊 Received \(results.count) results from search service")
             
             // Filter out already swiped
-            let filtered = results.filter { 
-                !swipedRightIDs.contains($0.id) && !swipedLeftIDs.contains($0.id) 
+            let filtered = results.filter {
+                !swipedRightIDs.contains($0.id) && !swipedLeftIDs.contains($0.id)
             }
             
             print("📊 After filtering swiped: \(filtered.count) results")
@@ -237,6 +236,24 @@ final class FeedService: ObservableObject {
             currentSearchQuery = nil
             lastSearchSignature = nil
             throw error
+        }
+    }
+    
+    /// Remove a liked shoe from user's collection (delete from database)
+    nonisolated func unlikeShoe(sneakerID: UUID) async throws {
+        let session = try await supabase.auth.session
+        _ = try await supabase
+            .from("user_swipes")
+            .delete()
+            .eq("user_id", value: session.user.id)
+            .eq("sneaker_id", value: sneakerID)
+            .execute()
+        
+        // Also update local state
+        await MainActor.run { [weak self] in
+            guard let self = self else { return }
+            self.swipedRightIDs.remove(sneakerID)
+            self.liked.removeAll { $0.id == sneakerID }
         }
     }
 }
@@ -558,4 +575,3 @@ private struct SneakerRow: Decodable {
     let gender: String?
     let link: String?
 }
-
