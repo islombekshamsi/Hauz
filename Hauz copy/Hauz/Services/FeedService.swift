@@ -196,13 +196,16 @@ final class FeedService: ObservableObject {
                 supabaseAPIKey: AppSecrets.supabaseAnonKey
             )
             
-            // Run directly (async network calls won't block UI; avoids detached-task weirdness).
-            let response = try await SemanticSearchService.searchSneakers(
+            // Use semantic search with embeddings from search_metadata
+            // Reverted to single-embedding approach for simplicity
+            let response = try await SemanticSearchService.searchSneakersHybrid(
                 config: config,
                 query: trimmedQuery,
                 gender: gender,
                 priceMin: priceMin,
-                priceMax: priceMax
+                priceMax: priceMax,
+                semanticWeight: 0.6,  // Kept for API compatibility (not used)
+                filterWeight: 0.4      // Kept for API compatibility (not used)
             )
             
             let results = response.cards
