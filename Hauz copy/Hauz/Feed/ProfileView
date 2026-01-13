@@ -117,7 +117,7 @@ struct ProfileView: View {
                     Image(systemName: viewMode == .card ? "square.grid.2x2" : "rectangle.stack")
                         .font(.system(size: 18))
                     Text(viewMode == .card ? "Grid" : "Cards")
-                        .font(.custom("bernoru-blackultraexpanded", size: 14))
+                        .font(.custom("Outfit-SemiBold", size: 14))
                 }
                 .foregroundColor(Color("HauzFocus"))
                 .padding(.horizontal, 16)
@@ -144,7 +144,7 @@ struct ProfileView: View {
                     Image(systemName: isSelectMode ? "checkmark.circle.fill" : "checkmark.circle")
                         .font(.system(size: 18))
                     Text(isSelectMode ? "Done" : "Select")
-                        .font(.custom("bernoru-blackultraexpanded", size: 14))
+                        .font(.custom("Outfit-SemiBold", size: 14))
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 16)
@@ -526,8 +526,8 @@ struct FlippableShoeCard: View {
                     
                     // Floating price badge - top right, clean and bold
                     Text(card.price.map { "$\(Int($0))" } ?? "$—")
-                        .font(.custom("bernoru-blackultraexpanded", size: 20))
-                        .foregroundColor(.white)
+                        .font(.custom("Outfit-Black", size: 27))
+                        .foregroundColor(Color("HauzLight"))
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
                         .background(
@@ -549,12 +549,12 @@ struct FlippableShoeCard: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.shoeName)
-                            .font(.custom("bernoru-blackultraexpanded", size: 15))
+                            .font(.custom("Outfit-SemiBold", size: 15))
                             .foregroundColor(Color("HauzBg"))
                             .lineLimit(1)
                         
                         Text(card.brandName)
-                            .font(.custom("bernoru-blackultraexpanded", size: 10))
+                            .font(.custom("Outfit-SemiBold", size: 10))
                             .foregroundColor(.secondary)
                     }
                     
