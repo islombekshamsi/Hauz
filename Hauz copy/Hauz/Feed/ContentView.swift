@@ -340,9 +340,27 @@ struct FilterView: View {
     }
     /// Currently selected gender filter
     @State private var selectedGender: Gender = .male
+    /// Currently selected color filter (optional)
+    @State private var selectedColor: String? = nil
     @State private var isApplying = false
     @State private var showError: String?
     @State private var showNotice: String?
+    
+    /// Available color options for filtering
+    private let availableColors = [
+        ("Black", "#000000"),
+        ("White", "#FFFFFF"),
+        ("Red", "#FF0000"),
+        ("Blue", "#0000FF"),
+        ("Green", "#008000"),
+        ("Yellow", "#FFFF00"),
+        ("Orange", "#FFA500"),
+        ("Purple", "#800080"),
+        ("Pink", "#FFC0CB"),
+        ("Brown", "#8B4513"),
+        ("Gray", "#808080"),
+        ("Beige", "#F5F5DC")
+    ]
     
     /// SF Symbol icons for each gender option
     private let genderIcons: [Gender: String] = [
@@ -543,6 +561,80 @@ struct FilterView: View {
                     .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
             )
             
+            // MARK: Color Selection Section
+            VStack(spacing: 12) {
+                // Section title
+                HStack {
+                    Text("Color")
+                        .font(.custom("bernoru-blackultraexpanded", size: 15))
+                    Spacer()
+                    if selectedColor != nil {
+                        Button {
+                            selectedColor = nil
+                        } label: {
+                            Text("Clear")
+                                .font(.custom("bernoru-blackultraexpanded", size: 9))
+                                .foregroundColor(Color("HauzFocus"))
+                        }
+                    }
+                }
+                
+                // Color chips grid
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 10) {
+                    ForEach(availableColors, id: \.0) { colorName, hexCode in
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if selectedColor == colorName {
+                                    selectedColor = nil // Deselect if already selected
+                                } else {
+                                    selectedColor = colorName
+                                }
+                            }
+                        } label: {
+                            VStack(spacing: 6) {
+                                // Color circle
+                                Circle()
+                                    .fill(Color(hex: hexCode))
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(selectedColor == colorName ? Color("HauzFocus") : Color.clear, lineWidth: 3)
+                                    )
+                                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                
+                                // Color name
+                                Text(colorName)
+                                    .font(.custom("bernoru-blackultraexpanded", size: 7))
+                                    .foregroundColor(selectedColor == colorName ? Color("HauzFocus") : .secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.5)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(selectedColor == colorName ? Color("HauzFocus").opacity(0.1) : Color.clear)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.ultraThinMaterial) // Glass effect
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
+            )
+            
             // Show error if any
             if let showError {
                 Text(showError)
@@ -718,6 +810,34 @@ struct FilterView: View {
             group.cancelAll()
             return result
         }
+    }
+}
+
+// MARK: - Color Extension for Hex Support
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
 
