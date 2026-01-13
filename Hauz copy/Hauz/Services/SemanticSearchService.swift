@@ -12,6 +12,7 @@ private struct SearchResult: Decodable, Sendable {
     let retail_price: Double?
     let gender: String?
     let link: String?
+    let colors: [ShoeColor]?
     let similarity: Double
 }
 
@@ -222,7 +223,8 @@ final class SemanticSearchService: @unchecked Sendable {
                 price: result.retail_price,
                 imageURL: result.image_url.flatMap(URL.init),
                 gender: result.gender,
-                stockxLink: result.link
+                stockxLink: result.link,
+                colors: result.colors
             )
         }
         
