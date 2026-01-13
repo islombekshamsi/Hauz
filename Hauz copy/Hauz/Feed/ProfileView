@@ -1,12 +1,21 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @State private var filters: [String] = ["Sneakers","Style"]
-    @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
+    @State private var filters: [String] = ["Sneakers","Collections"]
+    @AppStorage("hauz_profile_filter") private var selectedFilter = "Sneakers"
     
     @State private var likedShoes: [LikedShoeData] = []
     @State private var isLoading = false
+    @State private var viewMode: ViewMode = .card // Card or Grid view
+    @State private var isSelectMode = false // Multi-select mode
+    @State private var selectedShoes: Set<UUID> = []
+    @State private var showAddToCollectionSheet = false
+    
     private let feedService = FeedService()
+    
+    enum ViewMode {
+        case card, grid
+    }
     
     // Computed properties for pinned and unpinned shoes
     private var pinnedShoes: [LikedShoeData] {
@@ -30,66 +39,302 @@ struct ProfileView: View {
                 
                 Spacer().frame(height: 20)
                 
-                ZStack(alignment: .topTrailing) {
-                    // Scrollable card list
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 20) {
-                            // Add top padding to prevent cards from going under filter button
-                            Spacer().frame(height: 60)
-                            
-                            // Show pinned shoes first
-                            ForEach(pinnedShoes) { shoe in
-                                FlippableShoeCard(card: shoe, onTogglePin: {
-                                    togglePin(for: shoe)
-                                })
-                                .swipeActions {
-                                    Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
-                                        resetPosition.toggle()
-                                        Task {
-                                            await removeShoe(shoe)
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Then show unpinned shoes
-                            ForEach(unpinnedShoes) { shoe in
-                                FlippableShoeCard(card: shoe, onTogglePin: {
-                                    togglePin(for: shoe)
-                                })
-                                .swipeActions {
-                                    Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
-                                        resetPosition.toggle()
-                                        Task {
-                                            await removeShoe(shoe)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 20)
-                    }
-                    
-                    // Floating filter button on top
-                    GlassFilterButton(
-                        onAlphabeticalSort: applyAlphabeticalSort,
-                        onPriceLowToHigh: applyPriceLowToHighSort,
-                        onPriceHighToLow: applyPriceHighToLowSort
-                    )
-                    .padding(.top, 16)
-                    .padding(.trailing, 10)
-                }
-                
-                if isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzFocus")))
-                        .padding(.top, 16)
+                // Conditionally show Sneakers or Collections
+                if selectedFilter == "Sneakers" {
+                    sneakersView
+                } else {
+                    CollectionsView()
                 }
             }
         }
         .task {
             await loadLikedShoes()
+        }
+    }
+    
+    private var sneakersView: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                // Toolbar with view toggle and select button
+                sneakersToolbar
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color("HauzBg"))
+                
+                // Content based on view mode
+                if viewMode == .card {
+                    cardListView
+                } else {
+                    gridView
+                }
+            }
+            
+            // Floating Add to Collection button (shown when items are selected)
+            if isSelectMode && !selectedShoes.isEmpty {
+                VStack {
+                    Spacer()
+                    addToCollectionButton
+                }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
+            
+            // Commented out filter button for now
+            // GlassFilterButton(
+            //     onAlphabeticalSort: applyAlphabeticalSort,
+            //     onPriceLowToHigh: applyPriceLowToHighSort,
+            //     onPriceHighToLow: applyPriceHighToLowSort
+            // )
+            // .padding(.top, 16)
+            // .padding(.trailing, 10)
+            
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzFocus")))
+            }
+        }
+        .fullScreenCover(isPresented: $showAddToCollectionSheet) {
+            BulkAddToCollectionSheet(
+                sneakerIds: Array(selectedShoes),
+                sneakerCount: selectedShoes.count,
+                onComplete: {
+                    isSelectMode = false
+                    selectedShoes.removeAll()
+                }
+            )
+        }
+    }
+    
+    // MARK: - Toolbar
+    private var sneakersToolbar: some View {
+        HStack(spacing: 12) {
+            // View toggle (Card/Grid)
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    viewMode = viewMode == .card ? .grid : .card
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: viewMode == .card ? "square.grid.2x2" : "rectangle.stack")
+                        .font(.system(size: 18))
+                    Text(viewMode == .card ? "Grid" : "Cards")
+                        .font(.custom("bernoru-blackultraexpanded", size: 14))
+                }
+                .foregroundColor(Color("HauzFocus"))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+                )
+            }
+            
+            Spacer()
+            
+            // Select button
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isSelectMode.toggle()
+                    if !isSelectMode {
+                        selectedShoes.removeAll()
+                    }
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isSelectMode ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(.system(size: 18))
+                    Text(isSelectMode ? "Done" : "Select")
+                        .font(.custom("bernoru-blackultraexpanded", size: 14))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelectMode ? Color.green : Color("HauzFocus"))
+                )
+            }
+        }
+    }
+    
+    // MARK: - Card List View
+    private var cardListView: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 20) {
+                Spacer().frame(height: 10)
+                
+                // Show pinned shoes first
+                ForEach(pinnedShoes) { shoe in
+                    selectableCardView(shoe: shoe, isPinned: true)
+                }
+                
+                // Then show unpinned shoes
+                ForEach(unpinnedShoes) { shoe in
+                    selectableCardView(shoe: shoe, isPinned: false)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 20)
+        }
+    }
+    
+    // MARK: - Grid View (2 cards per row)
+    private var gridView: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 16) {
+                // Show pinned shoes first
+                ForEach(pinnedShoes) { shoe in
+                    gridCardView(shoe: shoe)
+                }
+                
+                // Then show unpinned shoes
+                ForEach(unpinnedShoes) { shoe in
+                    gridCardView(shoe: shoe)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 10)
+            .padding(.bottom, 20)
+        }
+    }
+    
+    // MARK: - Grid Card View (Scaled FlippableShoeCard)
+    private func gridCardView(shoe: LikedShoeData) -> some View {
+        ZStack(alignment: .topLeading) {
+            FlippableShoeCard(card: shoe, onTogglePin: {
+                togglePin(for: shoe)
+            })
+            .scaleEffect(0.48) // Scale down to fit 2 per row
+            .frame(width: 173, height: 154) // Scaled dimensions
+            .opacity(isSelectMode ? 0.95 : 1.0)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if isSelectMode {
+                    toggleSelection(shoe.id)
+                }
+            }
+            .contextMenu {
+                if !isSelectMode {
+                    Button {
+                        togglePin(for: shoe)
+                    } label: {
+                        Label(shoe.isPinned ? "Unpin" : "Pin", systemImage: shoe.isPinned ? "star.slash" : "star")
+                    }
+                    
+                    Button(role: .destructive) {
+                        Task { await removeShoe(shoe) }
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    
+                    if let link = shoe.stockxLink, let url = URL(string: link) {
+                        Button {
+                            UIApplication.shared.open(url)
+                        } label: {
+                            Label("View on StockX", systemImage: "arrow.up.forward.app")
+                        }
+                    }
+                }
+            }
+            
+            // Selection checkmark (top-left)
+            if isSelectMode {
+                Button(action: {
+                    toggleSelection(shoe.id)
+                }) {
+                    Image(systemName: selectedShoes.contains(shoe.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24))
+                        .foregroundColor(selectedShoes.contains(shoe.id) ? Color("HauzFocus") : .white)
+                        .background(
+                            Circle()
+                                .fill(selectedShoes.contains(shoe.id) ? .white : Color.black.opacity(0.3))
+                                .frame(width: 20, height: 20)
+                        )
+                        .padding(8)
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+    }
+    
+    // MARK: - Selectable Card View
+    private func selectableCardView(shoe: LikedShoeData, isPinned: Bool) -> some View {
+        ZStack(alignment: .topLeading) {
+            FlippableShoeCard(card: shoe, onTogglePin: {
+                togglePin(for: shoe)
+            })
+            .opacity(isSelectMode ? 0.95 : 1.0)
+            .swipeActions {
+                Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
+                    resetPosition.toggle()
+                    Task {
+                        await removeShoe(shoe)
+                    }
+                }
+            }
+            .onTapGesture {
+                if isSelectMode {
+                    toggleSelection(shoe.id)
+                }
+            }
+            
+            // Selection checkmark (top-left)
+            if isSelectMode {
+                Button(action: {
+                    toggleSelection(shoe.id)
+                }) {
+                    Image(systemName: selectedShoes.contains(shoe.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 32))
+                        .foregroundColor(selectedShoes.contains(shoe.id) ? Color("HauzFocus") : .white)
+                        .background(
+                            Circle()
+                                .fill(selectedShoes.contains(shoe.id) ? .white : Color.black.opacity(0.3))
+                                .frame(width: 28, height: 28)
+                        )
+                        .padding(16)
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+    }
+    
+    // MARK: - Add to Collection Button (Floating)
+    private var addToCollectionButton: some View {
+        Button(action: {
+            showAddToCollectionSheet = true
+        }) {
+            HStack(spacing: 10) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 20, weight: .bold))
+                Text("Add \(selectedShoes.count) to Collection")
+                    .font(.custom("bernoru-blackultraexpanded", size: 16))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(
+                LinearGradient(
+                    colors: [Color("HauzFocus"), Color("HauzFocus").opacity(0.9)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            )
+            .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: -5)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 100) // Space above tab bar
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+    
+    // MARK: - Helper Functions
+    private func toggleSelection(_ id: UUID) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            if selectedShoes.contains(id) {
+                selectedShoes.remove(id)
+            } else {
+                selectedShoes.insert(id)
+            }
         }
     }
     
@@ -229,6 +474,8 @@ struct FlippableShoeCard: View {
     let card: LikedShoeData
     let onTogglePin: () -> Void
     
+    @State private var showAddToCollection = false
+    
     var body: some View {
         ZStack {
             // Pure white background
@@ -313,6 +560,16 @@ struct FlippableShoeCard: View {
                     
                     Spacer()
                     
+                    // Add to Collection button
+                    Button(action: {
+                        showAddToCollection = true
+                    }) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color("HauzFocus"))
+                    }
+                    .padding(.trailing, 8)
+                    
                     // View button
                     Button(action: {
                         if let link = card.stockxLink, let url = URL(string: link) {
@@ -343,6 +600,9 @@ struct FlippableShoeCard: View {
             x: 0,
             y: 10
         )
+        .sheet(isPresented: $showAddToCollection) {
+            AddToCollectionSheet(sneakerId: card.id, sneakerName: card.shoeName)
+        }
     }
 }
 
