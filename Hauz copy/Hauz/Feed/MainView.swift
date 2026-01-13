@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Main View
 struct MainView: View {
     @State private var filters: [String] = ["Sneakers","Style"]
-    @AppStorage("hauz_home_filter") private var selectedFilter = "Sneakers"
+    @AppStorage("hauz_main_filter") private var selectedFilter = "Sneakers"
     @ObservedObject var feedService: FeedService
     @State private var isLoading = false
     @State private var isLoadingMore = false
@@ -322,18 +322,18 @@ struct CardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Price - most important, biggest
                 Text(formattedPrice)
-                    .font(.custom("bernoru-blackultraexpanded", size: 45))
+                    .font(.custom("Outfit-Black", size: 60))
                     .foregroundColor(Color("HauzBg"))
                 
                 // Shoe name - second priority
                 Text(card.shoeName)
-                    .font(.custom("bernoru-blackultraexpanded", size: 15))
+                    .font(.custom("Outfit-SemiBold", size: 15))
                     .foregroundColor(Color("HauzFocus"))
-                    .lineLimit(1)
+                    .lineLimit(2)
                 
                 // Brand name - third priority
                 Text(card.brandName)
-                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                    .font(.custom("Outfit-SemiBold", size: 12))
                     .foregroundColor(Color("HauzFocus"))
             }
             
@@ -361,7 +361,7 @@ struct CardView: View {
                 }) {
                     HStack(spacing: 6) {
                         Text("View")
-                            .font(.custom("bernoru-blackultraexpanded", size: 15))
+                            .font(.custom("Outfit-Medium", size: 20))
                         Image(systemName: "arrow.right")
                             .font(.system(size: 15, weight: .heavy))
                     }
