@@ -76,9 +76,9 @@ struct ContentView: View {
                                 .font(.title2)
                             
                             // Tab label
-                            Text(tab.rawValue)
-                                .font(.custom("bernoru-blackultraexpanded", size: 8))
-                                .fontWeight(tab == self.activeTab ? .bold : .regular)
+                           /* Text(tab.rawValue)
+                                .font(.custom("Satoshi-Regular", size: 8))
+                                .fontWeight(tab == self.activeTab ? .bold : .regular)*/
                                 
                         }
                         .symbolVariant(.fill) // Use filled variant of SF Symbols
@@ -136,7 +136,8 @@ struct ContentView: View {
         VStack(spacing: 20) {
             // Menu title
             Text("Settings")
-                .font(.custom("bernoru-blackultraexpanded", size: 20))
+                .font(.custom("Outfit-Black", size: 20))
+                .foregroundStyle(Color("HauzLight"))
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             // Settings options container
@@ -159,7 +160,7 @@ struct ContentView: View {
             
             // Helper text at bottom
             Text("Choose an option from the menu")
-                .font(.custom("HooverVariable-Bold_Thin", size: 11))
+                .font(.custom("Outfit-SemiBold", size: 11))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
         }
@@ -200,8 +201,8 @@ struct ContentView: View {
                 
                 // Menu item title
                 Text(title)
-                    .foregroundStyle(Color("HauzBg"))
-                    .font(.custom("bernoru-blackultraexpanded", size: 10))
+                    .foregroundStyle(Color("HauzLight"))
+                    .font(.custom("Outfit-SemiBold", size: 20))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(10)
