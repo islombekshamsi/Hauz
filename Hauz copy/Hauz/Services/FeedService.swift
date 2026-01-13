@@ -12,7 +12,14 @@ struct SneakerCard: Identifiable, Hashable {
     let imageURL: URL?
     let gender: String?
     let stockxLink: String?
+    let colors: [ShoeColor]?
     var isPinned: Bool = false
+}
+
+/// Represents a color extracted from a shoe image
+struct ShoeColor: Codable, Hashable {
+    let name: String
+    let hex: String
 }
 
 /// DTO for a swipe event
@@ -345,6 +352,7 @@ private extension FeedService {
                 imageURL: row.sneakers_only.image_url.flatMap(URL.init),
                 gender: row.sneakers_only.gender,
                 stockxLink: row.sneakers_only.link,
+                colors: nil, // Colors not needed for liked shoes view
                 isPinned: row.is_pinned ?? false
             )
         }
@@ -386,7 +394,8 @@ private extension FeedService {
                 price: row.retail_price,
                 imageURL: row.image_url.flatMap(URL.init),
                 gender: row.gender,
-                stockxLink: row.link
+                stockxLink: row.link,
+                colors: row.colors
             )
         }
 
@@ -401,7 +410,8 @@ private extension FeedService {
                     price: row.retail_price,
                     imageURL: row.image_url.flatMap(URL.init),
                     gender: row.gender,
-                    stockxLink: row.link
+                    stockxLink: row.link,
+                    colors: row.colors
                 )
             }
         }
@@ -432,7 +442,8 @@ private extension FeedService {
                 price: row.retail_price,
                 imageURL: row.image_url.flatMap(URL.init),
                 gender: row.gender,
-                stockxLink: row.link
+                stockxLink: row.link,
+                colors: row.colors
             )
         }
     }
@@ -471,7 +482,8 @@ private extension FeedService {
                     image_url,
                     retail_price,
                     gender,
-                    link
+                    link,
+                    colors
                 """)
             
             if let normalizedGender, !normalizedGender.isEmpty {
@@ -595,4 +607,5 @@ private struct SneakerRow: Decodable {
     let retail_price: Double?
     let gender: String?
     let link: String?
+    let colors: [ShoeColor]?
 }
