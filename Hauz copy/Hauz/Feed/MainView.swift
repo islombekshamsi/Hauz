@@ -468,13 +468,13 @@ struct StyleView: View {
                 // Text content
                 VStack(spacing: 12) {
                     Text("Coming Soon")
-                        .font(.custom("bernoru-blackultraexpanded", size: 30))
+                        .font(.custom("Outfit-Black", size: 30))
                         .foregroundColor(Color("HauzFocus"))
                         .multilineTextAlignment(.center)
                     
                     Text("We're working on something\namazing for you!")
-                        .font(.custom("bernoru-blackultraexpanded", size: 15))
-                        .foregroundColor(.secondary)
+                        .font(.custom("Outfit-SemiBold", size: 15))
+                        .foregroundColor(Color("HauzLight"))
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                 }
@@ -484,7 +484,7 @@ struct StyleView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 12, weight: .bold))
                     Text("Style Feed")
-                        .font(.custom("bernoru-blackultraexpanded", size: 10))
+                        .font(.custom("Outfit-Black", size: 10))
                     Image(systemName: "sparkles")
                         .font(.system(size: 12, weight: .bold))
                 }
