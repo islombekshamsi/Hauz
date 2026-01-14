@@ -285,12 +285,12 @@ struct OTPVerificationView: View{
                 VStack(alignment: .leading, spacing: 12){
                     VStack(alignment: .leading, spacing: 8){
                         Text("Verification")
-                            .font(.custom("HooverVariable-Bold_Medium", size: 30))
+                            .font(.custom("Outfit-Medium", size: 30))
                             .foregroundStyle(Color("HauzFocus"))
                         
                         HStack(spacing: 4){
                             Text("Enter the 6-digit code.")
-                                .font(.custom("HooverVariable-Bold_Regular", size: 18))
+                                .font(.custom("Outfit-Medium", size: 18))
                                 .foregroundStyle(Color("HauzFocus"))
                             
                             // resent button could be added below
@@ -353,7 +353,7 @@ struct OTPVerificationView: View{
                     .frame(height: 150)
                     
                     Text(isOTPSent ? "Verification Code Sent!" : "Sending Verification Code...")
-                        .font(.custom("HooverVariable-Bold_Medium", size: 20))
+                        .font(.custom("Outfit-Medium", size: 20))
                         .foregroundStyle(Color("HauzFocus"))
                 }
                 .geometryGroup()
