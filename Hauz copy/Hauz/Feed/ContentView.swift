@@ -95,15 +95,9 @@ struct ContentView: View {
                         if activeTab == tab {
                             if tab == .feed {
                                 // Filter Menu Button for Feed tab
-                                // Uses CustomMenuView to show filter options in a popover
-                                CustomMenuView(style: .glass) {
-                                    Image(systemName: tab.actionSymbol)
-                                        .font(.system(size: 22, weight: .medium))
-                                        .foregroundStyle(Color("HauzFocus"))
-                                        .frame(width: 55, height: 55)
-                                } content: {
-                                    FilterView() // Show filter menu content
-                                }
+                                // Opens filter sheet instead of popover
+                                FilterSheetButton()
+                                    .frame(width: 55, height: 55)
                             } else if tab == .profile {
                                 // Settings Menu Button for Profile tab
                                 // Uses CustomMenuView to show settings options in a popover
@@ -300,12 +294,108 @@ fileprivate extension View{
     }
 }
 
+// MARK: - Collapsible Section Component
+/// A reusable collapsible section with header and expandable content
+struct CollapsibleSection<Content: View>: View {
+    let title: String
+    let icon: String
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: () -> Content
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header button
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color("HauzFocus"))
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(Color("HauzFocus").opacity(0.1))
+                        )
+                    
+                    Text(title)
+                        .font(.custom("bernoru-blackultraexpanded", size: 14))
+                        .foregroundColor(Color("HauzLight"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color("HauzLight"))
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color("HauzBg"))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color("HauzFocus").opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Expandable content
+            if isExpanded {
+                content()
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color("HauzBg"))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color("HauzFocus").opacity(0.2), lineWidth: 1)
+                    )
+                    .padding(.top, 8)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.95).combined(with: .opacity),
+                        removal: .scale(scale: 0.95).combined(with: .opacity)
+                    ))
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+// MARK: - Filter Sheet Button
+/// Button that opens the filter sheet
+struct FilterSheetButton: View {
+    @State private var showFilterSheet = false
+    
+    var body: some View {
+        Button {
+            showFilterSheet = true
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(Color("HauzFocus"))
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            FilterView()
+        }
+    }
+}
+
 // MARK: - Filter View
 /// The main filter menu view with price range and gender selection
-/// Displayed as a popover from the filter button on the Feed tab
+/// Displayed as a sheet with collapsible sections
 struct FilterView: View {
     @EnvironmentObject var feedService: FeedService
     @Environment(\.dismiss) var dismiss
+    
+    // MARK: Section Expansion State
+    @State private var isSearchSectionExpanded = true
+    @State private var isPriceSectionExpanded = false
+    @State private var isGenderSectionExpanded = false
+    @State private var isColorSectionExpanded = false
     
     // MARK: Natural Language Search State
     /// User's natural language search query
@@ -380,314 +470,304 @@ struct FilterView: View {
     ]
     
     var body: some View {
-        VStack(spacing: 20) {
-            // MARK: Header
-            Text("Filter Preferences")
-                .font(.custom("bernoru-blackultraexpanded", size: 15))
-                .fontWeight(.bold)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // MARK: Natural Language Search Section
-            VStack(spacing: 12) {
-                // Section title
-                HStack {
-                    Text("What are you looking for?")
-                        .font(.custom("bernoru-blackultraexpanded", size: 15))
-                    Spacer()
-                }
-                
-                // Search text field
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 16))
-                    
-                    TextField("e.g., something cool for winter", text: $searchQuery)
-                        .font(.custom("bernoru-blackultraexpanded", size: 11))
-                        .textFieldStyle(.plain)
-                        .disabled(isApplying)
-                    
-                    if !searchQuery.isEmpty {
-                        Button {
-                            searchQuery = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.primary.opacity(0.05))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                )
-                
-                // Example queries
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(exampleQueries, id: \.self) { example in
-                            Button {
-                                searchQuery = example
-                            } label: {
-                                Text(example)
-                                    .font(.custom("bernoru-blackultraexpanded", size: 8))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color("HauzFocus").opacity(0.1))
-                                    .foregroundColor(Color("HauzFocus"))
-                                    .cornerRadius(12)
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // MARK: Natural Language Search Section (Collapsible)
+                    CollapsibleSection(
+                        title: "What are you looking for?",
+                        icon: "magnifyingglass",
+                        isExpanded: $isSearchSectionExpanded
+                    ) {
+                        VStack(spacing: 12) {
+                            // Section title inside (removed from header)
+                            HStack {
+                                Text("Search by description")
+                                    .font(.custom("bernoru-blackultraexpanded", size: 11))
+                                    .foregroundColor(Color("HauzLight"))
+                                Spacer()
                             }
-                        }
-                    }
-                }
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-            )
-            
-            // MARK: Price Range Section
-            VStack(spacing: 12) {
-                // Section title
-                HStack {
-                    Text("Price Range")
-                        .font(.custom("bernoru-blackultraexpanded", size: 15))
-                    Spacer()
-                }
-                
-                // Display current price range values
-                HStack {
-                    Text("$\(Int(lowerLimit))")
-                        .font(.custom("bernoru-blackultraexpanded", size: 12))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text("$\(Int(upperLimit))")
-                            .font(.custom("bernoru-blackultraexpanded", size: 12))
-                        .foregroundStyle(.primary)
-                }
-                
-                // Custom range slider component
-                RangeSlider(
-                    lowerValue: $lowerLimit,
-                    upperValue: $upperLimit,
-                    minValue: 0,
-                    maxValue: 1000
-                )
-                .frame(height: 24)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial) // Glass effect
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
-            )
-            
-            // MARK: Gender Selection Section
-            VStack(spacing: 12) {
-                // Section title
-                HStack {
-                    Text("Section")
-                        .font(.custom("bernoru-blackultraexpanded", size: 15))
-                    Spacer()
-                }
-                
-                // Gender selection buttons
-                HStack(spacing: 0) {
-                    ForEach(Gender.allCases, id: \.self) { gender in
-                        Button {
-                            // Animate gender selection change
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedGender = gender
-                            }
-                        } label: {
-                            VStack(spacing: 8) {
-                                // Gender icon
-                                Image(systemName: genderIcons[gender]!)
-                                    .font(.title2)
-                                    .foregroundStyle(selectedGender == gender ? .white : .primary)
+                            
+                            // Search text field
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(Color("HauzLight"))
+                                    .font(.system(size: 16))
                                 
-                                // Gender label
-                                Text(gender.label)
-                                    .font(.custom("bernoru-blackultraexpanded", size: 10))
-                                    .fontWeight(selectedGender == gender ? .semibold : .regular)
-                                    .foregroundStyle(selectedGender == gender ? .white : .secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                ZStack {
-                                    // Show colored background for selected gender
-                                    if selectedGender == gender {
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(gender.color)
-                                            .shadow(color: gender.color.opacity(0.4), radius: 8, x: 0, y: 4)
-                                            .transition(.scale.combined(with: .opacity))
+                                TextField("e.g., something cool for winter", text: $searchQuery)
+                                    .font(.custom("bernoru-blackultraexpanded", size: 11))
+                                    .foregroundColor(Color("HauzLight"))
+                                    .textFieldStyle(.plain)
+                                    .disabled(isApplying)
+                                
+                                if !searchQuery.isEmpty {
+                                    Button {
+                                        searchQuery = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(Color("HauzLight"))
                                     }
                                 }
-                            )
-                            .contentShape(Rectangle()) // Make entire area tappable
-                        }
-                        .buttonStyle(PlainButtonStyle()) // Remove default button styling
-                    }
-                }
-                .padding(4)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.ultraThinMaterial) // Glass effect background
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
-                )
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial) // Glass effect
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
-            )
-            
-            // MARK: Color Selection Section
-            VStack(spacing: 12) {
-                // Section title
-                HStack {
-                    Text("Color")
-                        .font(.custom("bernoru-blackultraexpanded", size: 15))
-                    Spacer()
-                    if selectedColor != nil {
-                        Button {
-                            selectedColor = nil
-                        } label: {
-                            Text("Clear")
-                                .font(.custom("bernoru-blackultraexpanded", size: 9))
-                                .foregroundColor(Color("HauzFocus"))
-                        }
-                    }
-                }
-                
-                // Color chips grid
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 10) {
-                    ForEach(availableColors, id: \.0) { colorName, hexCode in
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                if selectedColor == colorName {
-                                    selectedColor = nil // Deselect if already selected
-                                } else {
-                                    selectedColor = colorName
-                                }
                             }
-                        } label: {
-                            VStack(spacing: 6) {
-                                // Color circle
-                                Circle()
-                                    .fill(Color(hex: hexCode))
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(selectedColor == colorName ? Color("HauzFocus") : Color.clear, lineWidth: 3)
-                                    )
-                                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                                
-                                // Color name
-                                Text(colorName)
-                                    .font(.custom("bernoru-blackultraexpanded", size: 7))
-                                    .foregroundColor(selectedColor == colorName ? Color("HauzFocus") : .secondary)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
+                            .padding(12)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(selectedColor == colorName ? Color("HauzFocus").opacity(0.1) : Color.clear)
+                                    .fill(Color("HauzBg"))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color("HauzFocus").opacity(0.3), lineWidth: 1)
+                            )
+                            
+                            // Example queries
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(exampleQueries, id: \.self) { example in
+                                        Button {
+                                            searchQuery = example
+                                        } label: {
+                                            Text(example)
+                                                .font(.custom("bernoru-blackultraexpanded", size: 8))
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(Color("HauzFocus").opacity(0.1))
+                                                .foregroundColor(Color("HauzFocus"))
+                                                .cornerRadius(12)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // MARK: Price Range Section (Collapsible)
+                    CollapsibleSection(
+                        title: "Price Range",
+                        icon: "dollarsign.circle",
+                        isExpanded: $isPriceSectionExpanded
+                    ) {
+                        VStack(spacing: 12) {
+                            // Display current price range values
+                            HStack {
+                                Text("$\(Int(lowerLimit))")
+                                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                                    .foregroundStyle(Color("HauzLight"))
+                                Spacer()
+                                Text("$\(Int(upperLimit))")
+                                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                                    .foregroundStyle(Color("HauzLight"))
+                            }
+                            
+                            // Custom range slider component
+                            RangeSlider(
+                                lowerValue: $lowerLimit,
+                                upperValue: $upperLimit,
+                                minValue: 0,
+                                maxValue: 1000
+                            )
+                            .frame(height: 24)
+                        }
+                    }
+                    
+                    // MARK: Gender Selection Section (Collapsible)
+                    CollapsibleSection(
+                        title: "Section",
+                        icon: "figure.stand.dress",
+                        isExpanded: $isGenderSectionExpanded
+                    ) {
+                        VStack(spacing: 12) {
+                            // Gender selection buttons
+                            HStack(spacing: 0) {
+                                ForEach(Gender.allCases, id: \.self) { gender in
+                                    Button {
+                                        // Animate gender selection change
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            selectedGender = gender
+                                        }
+                                    } label: {
+                                        VStack(spacing: 8) {
+                                            // Gender icon
+                                            Image(systemName: genderIcons[gender]!)
+                                                .font(.title2)
+                                                .foregroundStyle(selectedGender == gender ? Color("HauzBg") : Color("HauzLight"))
+                                            
+                                            // Gender label
+                                            Text(gender.label)
+                                                .font(.custom("bernoru-blackultraexpanded", size: 10))
+                                                .fontWeight(selectedGender == gender ? .semibold : .regular)
+                                                .foregroundStyle(selectedGender == gender ? Color("HauzBg") : Color("HauzLight"))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(
+                                            ZStack {
+                                                // Show colored background for selected gender
+                                                if selectedGender == gender {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .fill(gender.color)
+                                                        .shadow(color: gender.color.opacity(0.4), radius: 8, x: 0, y: 4)
+                                                        .transition(.scale.combined(with: .opacity))
+                                                }
+                                            }
+                                        )
+                                        .contentShape(Rectangle()) // Make entire area tappable
+                                    }
+                                    .buttonStyle(PlainButtonStyle()) // Remove default button styling
+                                }
+                            }
+                            .padding(4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color("HauzBg"))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color("HauzFocus").opacity(0.3), lineWidth: 1)
                             )
                         }
-                        .buttonStyle(PlainButtonStyle())
+                    }
+                    
+                    // MARK: Color Selection Section (Collapsible)
+                    CollapsibleSection(
+                        title: "Color",
+                        icon: "paintpalette",
+                        isExpanded: $isColorSectionExpanded
+                    ) {
+                        VStack(spacing: 12) {
+                            // Clear button
+                            if selectedColor != nil {
+                                HStack {
+                                    Spacer()
+                                    Button {
+                                        selectedColor = nil
+                                    } label: {
+                                        Text("Clear")
+                                            .font(.custom("bernoru-blackultraexpanded", size: 9))
+                                            .foregroundColor(Color("HauzLight"))
+                                    }
+                                }
+                            }
+                            
+                            // Color chips grid
+                            LazyVGrid(columns: [
+                                GridItem(.flexible()),
+                                GridItem(.flexible()),
+                                GridItem(.flexible()),
+                                GridItem(.flexible())
+                            ], spacing: 10) {
+                                ForEach(availableColors, id: \.0) { colorName, hexCode in
+                                    Button {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            if selectedColor == colorName {
+                                                selectedColor = nil // Deselect if already selected
+                                            } else {
+                                                selectedColor = colorName
+                                            }
+                                        }
+                                    } label: {
+                                        VStack(spacing: 6) {
+                                            // Color circle
+                                            Circle()
+                                                .fill(Color(hex: hexCode))
+                                                .frame(width: 32, height: 32)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(selectedColor == colorName ? Color("HauzFocus") : Color.clear, lineWidth: 3)
+                                                )
+                                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                            
+                                            // Color name
+                                            Text(colorName)
+                                                .font(.custom("bernoru-blackultraexpanded", size: 7))
+                                                .foregroundColor(selectedColor == colorName ? Color("HauzFocus") : Color("HauzLight"))
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.5)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(selectedColor == colorName ? Color("HauzFocus").opacity(0.1) : Color.clear)
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Show error if any
+                    if let showError {
+                        Text(showError)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                    }
+                    
+                    // Show non-fatal notice (e.g., no strong matches, showing closest results)
+                    if let showNotice {
+                        Text(showNotice)
+                            .font(.caption)
+                            .foregroundColor(Color("HauzLight"))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                    }
+                    
+                    // MARK: Apply Button
+                    Button {
+                        Task {
+                            await applyFilters()
+                        }
+                    } label: {
+                        if isApplying {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzLight")))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        } else {
+                            Text("Apply Filters")
+                                .font(.custom("Outfit-Black", size: 20))
+                                .fontWeight(.bold)
+                                .foregroundColor(Color("HauzLight"))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color("HauzFocus"))
+                    )
+                    .disabled(isApplying)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    
+                    // MARK: Helper Text
+                    Text("Adjust your preferences and tap Apply to see results")
+                        .font(.custom("Outfit-Black", size: 15))
+                        .foregroundColor(Color("HauzLight"))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 20)
+                }
+                .padding(.top, 8)
+            }
+            .navigationTitle("Filter Preferences")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color("HauzLight"))
                     }
                 }
             }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial) // Glass effect
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
-            )
-            
-            // Show error if any
-            if let showError {
-                Text(showError)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-            }
-            
-            // Show non-fatal notice (e.g., no strong matches, showing closest results)
-            if let showNotice {
-                Text(showNotice)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            
-            // MARK: Apply Button
-            Button {
-                Task {
-                    await applyFilters()
-                }
-            } label: {
-                if isApplying {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                } else {
-                    Text("Apply Filters")
-                        .font(.custom("bernoru-blackultraexpanded", size: 12))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-            }
-            .buttonStyle(.glassProminent)
-            .tint(Color("HauzBg"))
-            .controlSize(.large)
-            .disabled(isApplying)
-            
-            // MARK: Helper Text
-            Text("Adjust your preferences and tap Apply to see results")
-                .font(.custom("bernoru-blackultraexpanded", size: 6))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            .background(Color("HauzBg"))
         }
-        .padding(20)
-        .frame(width: 320) // Fixed width for consistent appearance
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.thinMaterial) // Glass effect for entire menu
-        )
-        .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10) // Subtle shadow for depth
+        .background(Color("HauzBg"))
         .task {
             await loadCurrentPreferences()
         }
@@ -876,7 +956,7 @@ struct RangeSlider: View {
                 // MARK: Background Track
                 // Gray track showing full range
                 Capsule()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(Color("HauzLight").opacity(0.2))
                     .frame(height: height)
                 
                 // MARK: Active Range Track
@@ -924,7 +1004,7 @@ struct RangeSlider: View {
     /// Visual appearance of the slider thumbs
     private var thumb: some View {
         Circle()
-            .fill(Color.white)
+            .fill(Color("HauzLight"))
             .frame(width: thumbSize, height: thumbSize)
             .overlay(
                 Circle()
