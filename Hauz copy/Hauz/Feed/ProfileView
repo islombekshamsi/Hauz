@@ -194,7 +194,7 @@ struct ProfileView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 10)
-            .padding(.bottom, 20)
+            .padding(.bottom, 120)
         }
     }
     
@@ -236,6 +236,10 @@ struct ProfileView: View {
                     }
                 }
             }
+            .transition(.asymmetric(
+                insertion: .scale.combined(with: .opacity),
+                removal: .scale(scale: 0.8).combined(with: .opacity)
+            ))
             
             // Selection checkmark (top-left)
             if isSelectMode {
@@ -277,6 +281,10 @@ struct ProfileView: View {
                     toggleSelection(shoe.id)
                 }
             }
+            .transition(.asymmetric(
+                insertion: .scale.combined(with: .opacity),
+                removal: .scale(scale: 0.8).combined(with: .opacity)
+            ))
             
             // Selection checkmark (top-left)
             if isSelectMode {
@@ -362,20 +370,36 @@ struct ProfileView: View {
         }
     }
     
-    // Bulk delete selected shoes
+    // Bulk delete selected shoes with staggered animation
     private func bulkDeleteShoes() async {
         let shoesToDelete = likedShoes.filter { selectedShoes.contains($0.id) }
         
-        for shoe in shoesToDelete {
-            do {
-                try await feedService.unlikeShoe(sneakerID: shoe.id)
-                await MainActor.run {
+        // Delete shoes one by one with staggered animation
+        for (index, shoe) in shoesToDelete.enumerated() {
+            // Small delay for staggered effect
+            if index > 0 {
+                try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
+            }
+            
+            // Animate removal
+            await MainActor.run {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                     likedShoes.removeAll { $0.id == shoe.id }
                 }
-            } catch {
-                debugPrint("❌ Failed to delete shoe \(shoe.shoeName): \(error)")
+            }
+            
+            // Delete from database (async, doesn't block UI)
+            Task {
+                do {
+                    try await feedService.unlikeShoe(sneakerID: shoe.id)
+                } catch {
+                    debugPrint("❌ Failed to delete shoe \(shoe.shoeName): \(error)")
+                }
             }
         }
+        
+        // Small delay before clearing selection
+        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         // Clear selection and exit select mode
         await MainActor.run {
@@ -428,22 +452,27 @@ struct ProfileView: View {
         }
     }
     
-    // Remove shoe from liked collection
+    // Remove shoe from liked collection with smooth animation
     private func removeShoe(_ shoe: LikedShoeData) async {
-        do {
-            // Delete from database
-            try await feedService.unlikeShoe(sneakerID: shoe.id)
-            
-            // Remove from local UI with animation
-            await MainActor.run {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                    likedShoes.removeAll { $0.id == shoe.id }
-                }
+        // Remove from local UI with smooth animation first (optimistic update)
+        await MainActor.run {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
+                likedShoes.removeAll { $0.id == shoe.id }
             }
-            
+        }
+        
+        // Delete from database (async)
+        do {
+            try await feedService.unlikeShoe(sneakerID: shoe.id)
             print("✅ Removed \(shoe.shoeName) from liked collection")
         } catch {
             debugPrint("❌ Failed to remove shoe: \(error)")
+            // If delete fails, add it back
+            await MainActor.run {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
+                    likedShoes.append(shoe)
+                }
+            }
         }
     }
     
