@@ -193,6 +193,10 @@ struct CardView: View {
     @State private var offset = CGSize.zero
     @State private var rotation: Double = 0
     
+    /// Feature flag: zoom only affects the shoe image.
+    /// Turn this off (false) to disable instantly.
+    private let enableImageZoom: Bool = true
+    
     private var trendColor: Color {
         card.priceTrendIsUp ? Color.green : Color.red
     }
@@ -306,6 +310,7 @@ struct CardView: View {
                         .scaledToFit()
                         .frame(width: 300, height: 300)
                         .padding(20)
+                        .zoomable(enabled: enableImageZoom, maxScale: 4, doubleTapZoomScale: 2)
                 } placeholder: {
                     ProgressView()
                 }
@@ -315,8 +320,10 @@ struct CardView: View {
                     .scaledToFit()
                     .frame(width: 300, height: 300)
                     .padding(20)
+                    .zoomable(enabled: enableImageZoom, maxScale: 4, doubleTapZoomScale: 2)
             }
         }
+        .clipped()
     }
     
     // MARK: - Info Section
