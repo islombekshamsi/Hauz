@@ -98,6 +98,7 @@ struct ContentView: View {
                                 // Opens filter sheet instead of popover
                                 FilterSheetButton()
                                     .frame(width: 55, height: 55)
+                                    .environmentObject(feedService)
                             } else if tab == .profile {
                                 // Settings Menu Button for Profile tab
                                 // Uses CustomMenuView to show settings options in a popover
@@ -369,6 +370,7 @@ struct CollapsibleSection<Content: View>: View {
 /// Button that opens the filter sheet
 struct FilterSheetButton: View {
     @State private var showFilterSheet = false
+    @EnvironmentObject var feedService: FeedService
     
     var body: some View {
         Button {
@@ -377,9 +379,13 @@ struct FilterSheetButton: View {
             Image(systemName: "slider.horizontal.3")
                 .font(.system(size: 22, weight: .medium))
                 .foregroundStyle(Color("HauzFocus"))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .sheet(isPresented: $showFilterSheet) {
             FilterView()
+                .environmentObject(feedService)
         }
     }
 }
@@ -752,9 +758,16 @@ struct FilterView: View {
                 }
                 .padding(.top, 8)
             }
-            .navigationTitle("Filter Preferences")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Custom title in center
+                ToolbarItem(placement: .principal) {
+                    Text("Filter Preferences")
+                        .font(.custom("Outfit-Black", size: 20))
+                        .foregroundColor(Color("HauzLight"))
+                }
+                
+                // Close button on right
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         dismiss()
