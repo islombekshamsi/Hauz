@@ -322,7 +322,7 @@ struct CollapsibleSection<Content: View>: View {
                         )
                     
                     Text(title)
-                        .font(.custom("bernoru-blackultraexpanded", size: 14))
+                        .font(.custom("Outfit-Black", size: 18))
                         .foregroundColor(Color("HauzLight"))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
@@ -489,7 +489,7 @@ struct FilterView: View {
                             // Section title inside (removed from header)
                             HStack {
                                 Text("Search by description")
-                                    .font(.custom("bernoru-blackultraexpanded", size: 11))
+                                    .font(.custom("Outfit-Black", size: 12))
                                     .foregroundColor(Color("HauzLight"))
                                 Spacer()
                             }
@@ -501,7 +501,7 @@ struct FilterView: View {
                                     .font(.system(size: 16))
                                 
                                 TextField("e.g., something cool for winter", text: $searchQuery)
-                                    .font(.custom("bernoru-blackultraexpanded", size: 11))
+                                    .font(.custom("Outfit-Black", size: 15))
                                     .foregroundColor(Color("HauzLight"))
                                     .textFieldStyle(.plain)
                                     .disabled(isApplying)
@@ -533,7 +533,7 @@ struct FilterView: View {
                                             searchQuery = example
                                         } label: {
                                             Text(example)
-                                                .font(.custom("bernoru-blackultraexpanded", size: 8))
+                                                .font(.custom("Outfit-Black", size: 12))
                                                 .padding(.horizontal, 10)
                                                 .padding(.vertical, 6)
                                                 .background(Color("HauzFocus").opacity(0.1))
@@ -556,11 +556,11 @@ struct FilterView: View {
                             // Display current price range values
                             HStack {
                                 Text("$\(Int(lowerLimit))")
-                                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                                    .font(.custom("Outfit-Black", size: 18))
                                     .foregroundStyle(Color("HauzLight"))
                                 Spacer()
                                 Text("$\(Int(upperLimit))")
-                                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                                    .font(.custom("Outfit-Black", size: 18))
                                     .foregroundStyle(Color("HauzLight"))
                             }
                             
@@ -599,7 +599,7 @@ struct FilterView: View {
                                             
                                             // Gender label
                                             Text(gender.label)
-                                                .font(.custom("bernoru-blackultraexpanded", size: 10))
+                                                .font(.custom("Outfit-Black", size: 15))
                                                 .fontWeight(selectedGender == gender ? .semibold : .regular)
                                                 .foregroundStyle(selectedGender == gender ? Color("HauzBg") : Color("HauzLight"))
                                         }
@@ -648,7 +648,7 @@ struct FilterView: View {
                                         selectedColor = nil
                                     } label: {
                                         Text("Clear")
-                                            .font(.custom("bernoru-blackultraexpanded", size: 9))
+                                            .font(.custom("Outfit-Black", size: 15))
                                             .foregroundColor(Color("HauzLight"))
                                     }
                                 }
@@ -684,7 +684,7 @@ struct FilterView: View {
                                             
                                             // Color name
                                             Text(colorName)
-                                                .font(.custom("bernoru-blackultraexpanded", size: 7))
+                                                .font(.custom("Outfit-Black", size: 12))
                                                 .foregroundColor(selectedColor == colorName ? Color("HauzFocus") : Color("HauzLight"))
                                                 .lineLimit(1)
                                                 .minimumScaleFactor(0.5)
