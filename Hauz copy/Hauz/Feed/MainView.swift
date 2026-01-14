@@ -104,11 +104,11 @@ struct SneakersView: View {
                     } else {
                         // Ran out of shoes but can load more
                         Text("Ran out of shoes.")
-                            .font(.custom("bernoru-blackultraexpanded", size: 18))
-                            .foregroundColor(.secondary)
+                            .font(.custom("Outfit-Black", size: 25))
+                            .foregroundColor(Color("HauzLight"))
                         Text("Tap below to load more sneakers.")
-                            .font(.custom("bernoru-blackultraexpanded", size: 12))
-                            .foregroundColor(.secondary)
+                            .font(.custom("Outfit-SemiBold", size: 18))
+                            .foregroundColor(Color("HauzLight"))
                         
                         Button {
                             onNeedMore()
@@ -117,7 +117,7 @@ struct SneakersView: View {
                                 Image(systemName: "arrow.triangle.2.circlepath")
                                 Text("Load more")
                             }
-                            .font(.custom("bernoru-blackultraexpanded", size: 16))
+                            .font(.custom("Outfit-Black", size: 20))
                             .padding(.horizontal, 24)
                             .padding(.vertical, 14)
                             .background(
@@ -126,6 +126,7 @@ struct SneakersView: View {
                             )
                             .foregroundColor(.white)
                         }
+                        .padding(.vertical)
                     }
                 }
                 .frame(maxWidth: .infinity)
