@@ -136,6 +136,7 @@ struct SneakersView: View {
                 // Limit the visible stack to keep the layout tidy
                 let visibleCards = Array(cards.prefix(5))
                 
+                
                 ZStack {
                     ForEach(visibleCards) { card in
                         CardView(card: card) { direction in
@@ -144,9 +145,10 @@ struct SneakersView: View {
                         .stacked(at: indexOf(card), in: visibleCards.count)
                     }
                 }
-                .frame(height: 640)
+                .frame(height: 620)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8), value: cards)
-                // No button until the deck is empty
+                
+                Spacer()
             }
         }
     }
