@@ -104,17 +104,17 @@ struct UserInfo: View {
                         // Header section
                         VStack(spacing: 12) {
                             Text("Welcome to Hauz! Let's get to know you.")
-                                .font(.custom("bernoru-blackultraexpanded", size: 16))
+                                .font(.custom("Outfit-Black", size: 25))
 
                                 .multilineTextAlignment(.center)
-                                .foregroundColor(.primary)
+                                .foregroundColor(Color("HauzFocus"))
                                 .opacity(showContent ? 1 : 0)
                                 .offset(y: showContent ? 0 : -20)
                             
-                            Text("Which section would you like to shop in?.")
-                                .font(.custom("HooverVariable-Bold_Thin", size: 28))
+                            Text("Which section would you like to shop in?")
+                                .font(.custom("Outfit-Medium", size: 20))
                                 .multilineTextAlignment(.center)
-                                .foregroundColor(.primary)
+                                .foregroundColor(Color("HauzBg"))
                                 .opacity(showContent ? 1 : 0)
                                 .offset(y: showContent ? 0 : -20)
                         }
@@ -157,7 +157,7 @@ struct UserInfo: View {
                         NavigationLink(destination: UserInfo2().environmentObject(onboardingState)) {
                             HStack {
                                 Text("Continue")
-                                    .font(.custom("bernoru-blackultraexpanded", size: 16))
+                                    .font(.custom("Outfit-Black", size: 20))
                                     .foregroundColor(.white)
                                 
                                 Image(systemName: "arrow.right")
@@ -190,7 +190,7 @@ struct UserInfo: View {
                         .padding(.top, 10)
                         
                         Text("Don't worry, you can change the filters later on!")
-                            .font(.custom("bernoru-blackultraexpanded", size: 12))
+                            .font(.custom("Outfit-Black", size: 14))
                             .foregroundColor(.gray.opacity(0.7))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 30)
@@ -234,7 +234,7 @@ struct GenderSelectionCard: View {
                     .foregroundColor(isSelected ? color : color.opacity(0.6))
                 
                 Text(label)
-                    .font(.custom("HooverVariable-Bold_Regular", size: 18))
+                    .font(.custom("Outfit-Black", size: 20))
                     .foregroundColor(isSelected ? .primary : .primary.opacity(0.7))
             }
             .frame(maxWidth: .infinity)
@@ -295,14 +295,14 @@ struct UserInfo2: View {
                         // Header section
                         VStack(spacing: 12) {
                             Text("Great! Now select your favorite brands.")
-                                .font(.custom("HooverVariable-Bold_Regular", size: 20))
+                                .font(.custom("Outfit-Black", size: 20))
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.primary)
                                 .opacity(showContent ? 1 : 0)
                                 .offset(y: showContent ? 0 : -20)
                             
                             Text("It will help us personalize your experience. You can change this at any time.")
-                                .font(.custom("HooverVariable-Bold_Light", size: 15))
+                                .font(.custom("Outfit-SemiBold", size: 15))
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.secondary)
                                 .opacity(showContent ? 1 : 0)
@@ -318,7 +318,7 @@ struct UserInfo2: View {
                                     .font(.system(size: 12))
                                     .foregroundColor(Color("HauzFocus"))
                                 Text("Popular Brands")
-                                    .font(.custom("HooverVariable-Bold_Medium", size: 14))
+                                    .font(.custom("Outfit-Medium", size: 14))
                                     .foregroundColor(.secondary)
                                 Spacer()
                             }
@@ -364,7 +364,7 @@ struct UserInfo2: View {
                                         .foregroundColor(onboardingState.selectedBrands.count >= 3 ? Color("HauzFocus") : .gray)
                                     
                                     Text("\(onboardingState.selectedBrands.count) of 5 selected")
-                                        .font(.custom("HooverVariable-Bold_Regular", size: 14))
+                                        .font(.custom("Outfit-Medium", size: 14))
                                         .foregroundColor(.secondary)
                                 }
                                 
@@ -378,7 +378,7 @@ struct UserInfo2: View {
                                     generator.notificationOccurred(.success)
                                 }) {
                                     Text("Clear all")
-                                        .font(.custom("HooverVariable-Bold_Medium", size: 14))
+                                        .font(.custom("Outfit-Medium", size: 14))
                                         .foregroundColor(Color("HauzFocus"))
                                 }
                             }
@@ -390,7 +390,7 @@ struct UserInfo2: View {
                         NavigationLink(destination: OnboardingSucceeded().environmentObject(onboardingState)) {
                             HStack(spacing: 8) {
                                 Text("Continue")
-                                    .font(.custom("HooverVariable-Bold_Medium", size: 18))
+                                    .font(.custom("Outfit-Black", size: 20))
                                 
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 15, weight: .bold))
@@ -429,7 +429,7 @@ struct UserInfo2: View {
                         })
                         
                         Text("Don't see your brand? You can add more later!")
-                            .font(.custom("HooverVariable-Bold_Light", size: 13))
+                            .font(.custom("Outfit-Medium", size: 15))
                             .foregroundColor(.gray.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 30)
@@ -451,7 +451,7 @@ struct UserInfo2: View {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .semibold))
                         Text("Back")
-                            .font(.custom("HooverVariable-Bold_Regular", size: 16))
+                            .font(.custom("Outfit-Medium", size: 16))
                     }
                     .foregroundColor(.primary)
                 }
@@ -560,7 +560,7 @@ struct EnhancedChipView: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(brand.name)
-                .font(.custom("HooverVariable-Bold_Regular", size: 15))
+                .font(.custom("Outfit-Medium", size: 18))
                 .foregroundStyle(isSelected ? .white : Color.primary)
             
             if brand.isPopular && !isSelected {
@@ -704,7 +704,7 @@ struct OnboardingSucceeded: View {
                         LoadingView()
                         
                         Text("We are personalizing your feed. Please give us a moment.")
-                            .font(.custom("HooverVariable-Bold_Regular", size: 16))
+                            .font(.custom("Outfit-Medium", size: 20))
                             .foregroundColor(Color("HauzFocus"))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
@@ -736,7 +736,7 @@ struct OnboardingSucceeded: View {
                         }
                         
                         Text("Enjoy the experience!")
-                            .font(.custom("HooverVariable-Bold_Regular", size: 24))
+                            .font(.custom("Outfit-Black", size: 24))
                             .foregroundColor(Color("HauzFocus"))
                     }
                     .transition(.scale.combined(with: .opacity))
