@@ -54,11 +54,11 @@ struct LoginView: View{
         VStack(alignment: .leading, spacing: 12){
             VStack(alignment: .leading, spacing: 8){
                 Text("Hello there!")
-                    .font(.custom("bernoru-blackultraexpanded", size: 25))
+                    .font(.custom("Outfit-Black", size: 35))
 
                     .foregroundStyle(Color("HauzFocus"))
                 Text("Please enter your phone number to proceed")
-                    .font(.custom("bernoru-blackultraexpanded", size: 16))
+                    .font(.custom("Outfit-Black", size: 20))
 
                     .foregroundStyle(Color("HauzFocus"))
             }
@@ -79,12 +79,12 @@ struct LoginView: View{
             HStack(spacing: 8){
                 HStack(spacing: 5){
                     Text("🇺🇸 +1")
-                        .font(.custom("bernoru-blackultraexpanded", size: 12))
+                        .font(.custom("Outfit-SemiBold", size: 12))
                         .foregroundStyle(.gray)
         
                     
                     TextField("Mobile Number", text: $mobileNumber)
-                        .font(.custom("bernoru-blackultraexpanded", size: 12))
+                        .font(.custom("Outfit-SemiBold", size: 18))
                         .textContentType(.telephoneNumber)
                         .keyboardType(.phonePad)
                         .padding(10)
@@ -118,7 +118,7 @@ struct LoginView: View{
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     }
                     Text("Get Verification Code")
-                        .font(.custom("bernoru-blackultraexpanded", size: 12))
+                        .font(.custom("Outfit-Black", size: 16))
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
@@ -133,19 +133,19 @@ struct LoginView: View{
             
             Spacer(minLength: 0)
             // links and more
-            VStack(spacing: 4){
+            HStack(spacing: 4){
                 Link("Terms of Service", destination: URL(string: "https://apple.com")!)
                     .underline()
-                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                    .font(.custom("Outfit-Black", size: 14))
 
                 
                 Text("&")
-                    .font(.custom("bernoru-blackultraexpanded", size: 10))
+                    .font(.custom("Outfit-Black", size: 12))
 
                 
                 Link("Privacy Policy", destination: URL(string: "https://apple.com")!)
                     .underline()
-                    .font(.custom("bernoru-blackultraexpanded", size: 12))
+                    .font(.custom("Outfit-Black", size: 14))
 
             }
             .font(.callout)
