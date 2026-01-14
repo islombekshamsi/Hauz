@@ -101,15 +101,9 @@ struct ContentView: View {
                                     .environmentObject(feedService)
                             } else if tab == .profile {
                                 // Settings Menu Button for Profile tab
-                                // Uses CustomMenuView to show settings options in a popover
-                                CustomMenuView(style: .glass) {
-                                    Image(systemName: tab.actionSymbol)
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundStyle(Color("HauzFocus"))
-                                        .frame(width: 50, height: 50)
-                                } content: {
-                                    SettingsMenuView() // Show settings menu content
-                                }
+                                // Opens settings sheet
+                                SettingsSheetButton()
+                                    .frame(width: 50, height: 50)
                             }
                         }
                     }
@@ -123,98 +117,6 @@ struct ContentView: View {
         .frame(height: 50) // Fixed height for tab bar
     }
     
-    // MARK: - Settings Menu View
-    /// Displays the settings menu with various action options
-    /// Appears as a popover when the settings button is tapped
-    @ViewBuilder
-    func SettingsMenuView() -> some View {
-        VStack(spacing: 20) {
-            // Menu title
-            Text("Settings")
-                .font(.custom("Outfit-Black", size: 20))
-                .foregroundStyle(Color("HauzLight"))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Settings options container
-            VStack(alignment: .leading, spacing: 12){
-                // Each row represents a different settings action
-                RowView("paperplane.fill", "Share")
-                RowView("message.badge", "Suggestions")
-                RowView("chart.bar", "Data")
-                RowView("door.left.hand.open", "Log Out")
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial) // Glass effect background
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Subtle border
-            )
-            
-            // Helper text at bottom
-            Text("Choose an option from the menu")
-                .font(.custom("Outfit-SemiBold", size: 11))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .padding(20)
-        .frame(width: 280) // Fixed width for consistent appearance
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.thinMaterial) // Glass effect for entire menu
-        )
-        .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10) // Subtle shadow for depth
-    }
-    
-    // MARK: - Row View for Menu Items
-    /// Creates a menu item row with an icon and title
-    /// Used in both settings and filter menus
-    /// - Parameters:
-    ///   - image: SF Symbol name for the icon
-    ///   - title: Display text for the menu item
-    @ViewBuilder
-    func RowView(_ image: String, _ title: String) -> some View{
-        Button {
-            // Handle different menu actions
-            if title == "Log Out" {
-                Task {
-                    await handleLogout()
-                }
-            }
-            // TODO: Add action handling for other menu items
-        } label: {
-            HStack(spacing: 12){
-                // Icon with circular background
-                Image(systemName: image)
-                    .foregroundStyle(Color("HauzFocus"))
-                    .font(.title3)
-                    .symbolVariant(.fill) // Use filled variant
-                    .frame(width: 45, height: 45)
-                    .background(.background, in: .circle)
-                
-                // Menu item title
-                Text(title)
-                    .foregroundStyle(Color("HauzLight"))
-                    .font(.custom("Outfit-SemiBold", size: 20))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(10)
-            .contentShape(.rect) // Make entire row tappable
-        }
-    }
-    
-    // MARK: - Logout Handler
-    /// Handles user logout and returns to login screen
-    private func handleLogout() async {
-        do {
-            try await supabase.auth.signOut()
-            debugPrint("✅ User logged out successfully")
-        } catch {
-            debugPrint("❌ Error logging out: \(error)")
-        }
-    }
 }
 
 // MARK: - View Extensions
@@ -386,6 +288,28 @@ struct FilterSheetButton: View {
         .sheet(isPresented: $showFilterSheet) {
             FilterView()
                 .environmentObject(feedService)
+        }
+    }
+}
+
+// MARK: - Settings Sheet Button
+/// Button that opens the settings sheet
+struct SettingsSheetButton: View {
+    @State private var showSettingsSheet = false
+    
+    var body: some View {
+        Button {
+            showSettingsSheet = true
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color("HauzFocus"))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showSettingsSheet) {
+            SettingsView()
         }
     }
 }
@@ -937,6 +861,226 @@ extension Color {
 
 // Timeout error type
 private struct TimeoutError: Error {}
+
+// MARK: - Settings View
+/// Full settings sheet with wrapped sections matching filter view style
+struct SettingsView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // MARK: Account Section
+                    SettingsSection(title: "Account", icon: "person.circle") {
+                        SettingsRow(icon: "person.fill", title: "Profile", action: {
+                            print("Profile tapped")
+                        })
+                        
+                        Divider()
+                            .background(Color("HauzFocus").opacity(0.2))
+                        
+                        SettingsRow(icon: "bell.fill", title: "Notifications", action: {
+                            print("Notifications tapped")
+                        })
+                    }
+                    
+                    // MARK: General Section
+                    SettingsSection(title: "General", icon: "gear") {
+                        SettingsRow(icon: "paintbrush.fill", title: "Appearance", action: {
+                            print("Appearance tapped")
+                        })
+                        
+                        Divider()
+                            .background(Color("HauzFocus").opacity(0.2))
+                        
+                        SettingsRow(icon: "globe", title: "Language", action: {
+                            print("Language tapped")
+                        })
+                    }
+                    
+                    // MARK: Support Section
+                    SettingsSection(title: "Support", icon: "questionmark.circle") {
+                        SettingsRow(icon: "paperplane.fill", title: "Share App", action: {
+                            print("Share tapped")
+                        })
+                        
+                        Divider()
+                            .background(Color("HauzFocus").opacity(0.2))
+                        
+                        SettingsRow(icon: "message.badge", title: "Feedback", action: {
+                            print("Feedback tapped")
+                        })
+                        
+                        Divider()
+                            .background(Color("HauzFocus").opacity(0.2))
+                        
+                        SettingsRow(icon: "chart.bar", title: "Privacy & Data", action: {
+                            print("Privacy tapped")
+                        })
+                    }
+                    
+                    // MARK: Logout Section
+                    SettingsSection(title: "Account Actions", icon: "rectangle.portrait.and.arrow.right") {
+                        Button {
+                            Task {
+                                await handleLogout()
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "door.left.hand.open")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.red)
+                                    .frame(width: 32, height: 32)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.red.opacity(0.1))
+                                    )
+                                
+                                Text("Log Out")
+                                    .font(.custom("Outfit-Black", size: 16))
+                                    .foregroundColor(.red)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color("HauzLight").opacity(0.5))
+                            }
+                            .padding(12)
+                            .contentShape(Rectangle())
+                        }
+                    }
+                    
+                    // Helper text
+                    Text("Manage your preferences and account settings")
+                        .font(.custom("Outfit-Black", size: 12))
+                        .foregroundColor(Color("HauzLight"))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 20)
+                }
+                .padding(.top, 8)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Settings")
+                        .font(.custom("Outfit-Black", size: 20))
+                        .foregroundColor(Color("HauzLight"))
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color("HauzLight"))
+                    }
+                }
+            }
+            .background(Color("HauzBg"))
+        }
+        .background(Color("HauzBg"))
+    }
+    
+    private func handleLogout() async {
+        do {
+            try await supabase.auth.signOut()
+            debugPrint("✅ User logged out successfully")
+            dismiss()
+        } catch {
+            debugPrint("❌ Error logging out: \(error)")
+        }
+    }
+}
+
+// MARK: - Settings Section Component
+struct SettingsSection<Content: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder let content: () -> Content
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Section header
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color("HauzFocus"))
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(Color("HauzFocus").opacity(0.1))
+                    )
+                
+                Text(title)
+                    .font(.custom("Outfit-Black", size: 18))
+                    .foregroundColor(Color("HauzLight"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color("HauzBg"))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color("HauzFocus").opacity(0.3), lineWidth: 1)
+            )
+            
+            // Section content
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color("HauzBg"))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color("HauzFocus").opacity(0.2), lineWidth: 1)
+            )
+            .padding(.top, 8)
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+// MARK: - Settings Row Component
+struct SettingsRow: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Color("HauzFocus"))
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(Color("HauzFocus").opacity(0.1))
+                    )
+                
+                Text(title)
+                    .font(.custom("Outfit-Black", size: 16))
+                    .foregroundColor(Color("HauzLight"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color("HauzLight").opacity(0.5))
+            }
+            .padding(12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
 
 // DTO for filter updates
 private struct FilterUpdate: Encodable {
