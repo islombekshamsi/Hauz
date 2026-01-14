@@ -69,11 +69,11 @@ struct ProfileView: View {
                 }
             }
             
-            // Floating Add to Collection button (shown when items are selected)
-            if isSelectMode && !selectedShoes.isEmpty {
+            // Floating action buttons (shown in select mode)
+            if isSelectMode {
                 VStack {
                     Spacer()
-                    addToCollectionButton
+                    actionButtons
                 }
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             }
@@ -298,32 +298,56 @@ struct ProfileView: View {
         }
     }
     
-    // MARK: - Add to Collection Button (Floating)
-    private var addToCollectionButton: some View {
-        Button(action: {
-            showAddToCollectionSheet = true
-        }) {
-            HStack(spacing: 10) {
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 20, weight: .bold))
-                Text("Add \(selectedShoes.count) to Collection")
-                    .font(.custom("bernoru-blackultraexpanded", size: 16))
+    // MARK: - Action Buttons (Floating)
+    private var actionButtons: some View {
+        HStack(spacing: 20) {
+            // Delete Button
+            Button(action: {
+                Task {
+                    await bulkDeleteShoes()
+                }
+            }) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 60, height: 60)
+                    .background(
+                        Circle()
+                            .fill(selectedShoes.isEmpty ? Color.gray.opacity(0.3) : Color("HauzFocus"))
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(
-                LinearGradient(
-                    colors: [Color("HauzFocus"), Color("HauzFocus").opacity(0.9)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-            )
-            .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: -5)
+            .disabled(selectedShoes.isEmpty)
+            .opacity(selectedShoes.isEmpty ? 0.5 : 1.0)
+            
+            // Add to Collection Button
+            Button(action: {
+                showAddToCollectionSheet = true
+            }) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 60, height: 60)
+                    .background(
+                        Circle()
+                            .fill(selectedShoes.isEmpty ? Color.gray.opacity(0.3) : Color("HauzBg"))
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            }
+            .disabled(selectedShoes.isEmpty)
+            .opacity(selectedShoes.isEmpty ? 0.5 : 1.0)
+            
+            Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.bottom, 100) // Space above tab bar
+        .padding(.bottom, 60)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
@@ -336,6 +360,32 @@ struct ProfileView: View {
                 selectedShoes.insert(id)
             }
         }
+    }
+    
+    // Bulk delete selected shoes
+    private func bulkDeleteShoes() async {
+        let shoesToDelete = likedShoes.filter { selectedShoes.contains($0.id) }
+        
+        for shoe in shoesToDelete {
+            do {
+                try await feedService.unlikeShoe(sneakerID: shoe.id)
+                await MainActor.run {
+                    likedShoes.removeAll { $0.id == shoe.id }
+                }
+            } catch {
+                debugPrint("❌ Failed to delete shoe \(shoe.shoeName): \(error)")
+            }
+        }
+        
+        // Clear selection and exit select mode
+        await MainActor.run {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                selectedShoes.removeAll()
+                isSelectMode = false
+            }
+        }
+        
+        print("✅ Bulk deleted \(shoesToDelete.count) shoes")
     }
     
     private var header: some View{
