@@ -8,10 +8,10 @@ struct CollectionsView: View {
     
     private let collectionsService = CollectionsService()
     
-    // Grid layout (2 columns like Instagram) - tight spacing
+    // Grid layout (2 columns) - comfortable spacing
     private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
     ]
     
     var body: some View {
@@ -31,9 +31,9 @@ struct CollectionsView: View {
                     // Empty state
                     emptyState
                 } else {
-                    // Collections grid (Instagram-style: minimal spacing)
+                    // Collections grid with comfortable spacing
                     ScrollView(showsIndicators: false) {
-                        LazyVGrid(columns: columns, spacing: 2) {
+                        LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(collections) { collection in
                                 CollectionGridItem(collection: collection)
                                     .onTapGesture {
@@ -48,9 +48,9 @@ struct CollectionsView: View {
                                     }
                             }
                         }
-                        .padding(.horizontal, 1)
-                        .padding(.top, 8)
-                        .padding(.bottom, 30)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 120)
                     }
                 }
             }
