@@ -467,6 +467,23 @@ private extension FeedService {
             default: return gender.lowercased()
             }
         }()
+
+        // When the user selects multiple brands, a single `.in(brand, [...])` query + random offsets can
+        // still over-sample a dominant brand (e.g. Nike) and under-sample smaller brands.
+        // Fix: if the user picked a *small* set of brands, fetch a quota from each brand and then interleave.
+        if let brands, brands.count > 1, brands.count <= 8 {
+            print("🧩 querySneakers: balanced per-brand fetch enabled (brands=\(brands.count), limit=\(limit))")
+            let balanced = try await querySneakersBalancedAcrossBrands(
+                limit: limit,
+                offset: offset,
+                normalizedGender: normalizedGender,
+                brands: brands,
+                priceMin: priceMin,
+                priceMax: priceMax,
+                excludeIDs: excludeIDs
+            )
+            return balanced
+        }
         
         // Keep fetching batches until we have enough unique cards or hit max attempts
         while collected.count < limit && attempts < maxAttempts {
@@ -492,6 +509,10 @@ private extension FeedService {
             }
             if let brands, !brands.isEmpty {
                 query = query.in("brand", values: brands)
+                print("🔍 querySneakers: filtering by brands = \(brands)")
+                print("🔍 querySneakers: price range = $\(Int(priceMin))-$\(Int(priceMax))")
+            } else {
+                print("🔍 querySneakers: NO brand filter (showing all brands)")
             }
             
             // Add price range filters (exclude $0 and null prices)
@@ -532,53 +553,296 @@ private extension FeedService {
         return diversified
     }
     
-    /// Diversifies sneakers by brand to prevent one brand from dominating the feed
-    /// Uses a round-robin approach to distribute brands evenly
+    /// Fetch a quota per selected brand, then interleave to prevent one brand/model dominating.
+    /// This is intentionally used only when brands.count is small (<= 8) to avoid excessive network calls.
+    private func querySneakersBalancedAcrossBrands(
+        limit: Int,
+        offset: Int,
+        normalizedGender: String?,
+        brands: [String],
+        priceMin: Double,
+        priceMax: Double,
+        excludeIDs: Set<UUID>
+    ) async throws -> [SneakerRow] {
+        // Oversample so we can diversify (e.g. cap per model) and still hit `limit`.
+        let oversampleFactor = 2.2
+        let targetTotal = Int(ceil(Double(limit) * oversampleFactor))
+        let perBrandTarget = max(20, Int(ceil(Double(targetTotal) / Double(brands.count))))
+        let perBrandBatchSize = max(60, perBrandTarget)
+        let perBrandAttempts = 3
+        
+        var combined: [SneakerRow] = []
+        combined.reserveCapacity(targetTotal)
+        
+        // Fetch each brand separately so smaller brands don't get drowned out by Nike/adidas volume.
+        for (i, brand) in brands.enumerated() {
+            var brandCollected: [SneakerRow] = []
+            var attempts = 0
+            
+            while brandCollected.count < perBrandTarget && attempts < perBrandAttempts {
+                // Brand-specific jitter so we don't hit identical ranges across brands.
+                let jitter = (i * 97) + Int.random(in: 0...150)
+                let randomOffset = offset + (attempts * perBrandBatchSize) + jitter
+                
+                var query = supabase
+                    .from("sneakers_only")
+                    .select("""
+                        id,
+                        name,
+                        brand,
+                        image_url,
+                        retail_price,
+                        gender,
+                        link,
+                        colors
+                    """)
+                
+                if let normalizedGender, !normalizedGender.isEmpty {
+                    query = query.eq("gender", value: normalizedGender)
+                }
+                
+                // Exact brand match
+                query = query.eq("brand", value: brand)
+                
+                // Price range filters (exclude $0 and null)
+                query = query
+                    .gt("retail_price", value: 0)
+                    .gte("retail_price", value: priceMin)
+                    .lte("retail_price", value: priceMax)
+                
+                let rows: [SneakerRow] = try await query
+                    .order("created_at", ascending: false)
+                    .range(from: randomOffset, to: randomOffset + perBrandBatchSize - 1)
+                    .execute()
+                    .value
+                
+                let existing = Set(brandCollected.map { $0.id })
+                let fresh = rows.filter { !excludeIDs.contains($0.id) && !existing.contains($0.id) }
+                brandCollected.append(contentsOf: fresh)
+                
+                attempts += 1
+                if fresh.isEmpty && rows.count < perBrandBatchSize {
+                    break
+                }
+            }
+            
+            combined.append(contentsOf: brandCollected)
+        }
+        
+        // Now enforce brand + model diversity (hard cap per model in the first page).
+        let diversified = diversifyByBrand(combined, targetCount: limit)
+        
+#if DEBUG
+        // Quick sanity preview (first few cards should show mixed brands + mixed models).
+        let preview = diversified.prefix(12).map { row -> String in
+            let b = row.brand ?? "Unknown"
+            // modelKey() already namespaces with brand; keep output short.
+            let mk = modelKey(for: row).replacingOccurrences(of: b + " ", with: "")
+            return "\(b):\(mk)"
+        }
+        print("🧩 diversified preview: \(preview)")
+#endif
+        
+        return diversified
+    }
+    
+    /// Diversifies sneakers by brand AND model to prevent repetitive shoes/colorways.
+    /// Key improvements vs typical round-robin:
+    /// - Removes exhausted brands/models from the cycle (avoids "skipping" that creates streaks).
+    /// - Enforces a cap on how many times the same model can appear in the first `targetCount`.
     private func diversifyByBrand(_ sneakers: [SneakerRow], targetCount: Int) -> [SneakerRow] {
         guard !sneakers.isEmpty else { return [] }
         
-        // Group sneakers by brand
+        // Group sneakers by brand.
         var brandGroups: [String: [SneakerRow]] = [:]
         for sneaker in sneakers {
             let brand = sneaker.brand ?? "Unknown"
             brandGroups[brand, default: []].append(sneaker)
         }
         
-        // Shuffle each brand's shoes for variety
+        // Within each brand, diversify by model (better model key extraction + model round-robin).
         for brand in brandGroups.keys {
-            brandGroups[brand]?.shuffle()
+            if var shoes = brandGroups[brand] {
+                shoes = diversifyWithinBrandByModel(shoes)
+                brandGroups[brand] = shoes
+            }
         }
         
-        // Get brand keys sorted by count (descending) for fair distribution
-        let sortedBrands = brandGroups.keys.sorted { brand1, brand2 in
-            brandGroups[brand1]!.count > brandGroups[brand2]!.count
+        // Brands with more inventory go earlier, but we still interleave.
+        var activeBrands = brandGroups.keys.sorted { (a, b) -> Bool in
+            (brandGroups[a]?.count ?? 0) > (brandGroups[b]?.count ?? 0)
         }
         
-        // Round-robin selection to mix brands
         var result: [SneakerRow] = []
-        var brandIndices: [String: Int] = sortedBrands.reduce(into: [:]) { $0[$1] = 0 }
+        result.reserveCapacity(min(targetCount, sneakers.count))
         
-        // Keep cycling through brands until we have enough shoes
-        var currentBrandIndex = 0
-        while result.count < targetCount && result.count < sneakers.count {
-            let brand = sortedBrands[currentBrandIndex % sortedBrands.count]
+        // Hard caps to prevent "same model different colorway" floods in the first page.
+        let maxPerModelInFirstPage = 2
+        var modelCounts: [String: Int] = [:] // key: "\(brand)|\(modelKey)"
+        
+        var brandIndex = 0
+        var safety = 0
+        while result.count < targetCount && !activeBrands.isEmpty && safety < 10_000 {
+            safety += 1
             
-            if let index = brandIndices[brand],
-               let shoes = brandGroups[brand],
-               index < shoes.count {
-                result.append(shoes[index])
-                brandIndices[brand] = index + 1
+            if brandIndex >= activeBrands.count { brandIndex = 0 }
+            let brand = activeBrands[brandIndex]
+            
+            guard var queue = brandGroups[brand], !queue.isEmpty else {
+                activeBrands.removeAll { $0 == brand }
+                continue
             }
             
-            currentBrandIndex += 1
+            // Pop the next shoe for this brand.
+            let candidate = queue.removeFirst()
+            brandGroups[brand] = queue
             
-            // Safety check: if we've cycled through all brands and no one added anything, break
-            if currentBrandIndex > sortedBrands.count * 100 {
-                break
+            // Apply model cap in the first page. If we hit the cap, push it to the back and try later.
+            let candidateModelKey = modelKey(for: candidate)
+            let globalModelKey = "\(brand)|\(candidateModelKey)"
+            let currentCount = modelCounts[globalModelKey, default: 0]
+            
+            if currentCount >= maxPerModelInFirstPage && result.count < targetCount {
+                // Put it back at the end and move on.
+                brandGroups[brand, default: []].append(candidate)
+                brandIndex += 1
+                continue
+            }
+            
+            result.append(candidate)
+            modelCounts[globalModelKey] = currentCount + 1
+            
+            // Drop brands that are empty so we don't "skip" them and accidentally create streaks.
+            if (brandGroups[brand]?.isEmpty ?? true) {
+                activeBrands.removeAll { $0 == brand }
+                if brandIndex >= activeBrands.count { brandIndex = 0 }
+            } else {
+                brandIndex += 1
             }
         }
         
         return result
+    }
+    
+    /// Diversifies shoes within a brand by model to avoid showing the same model consecutively.
+    private func diversifyWithinBrandByModel(_ sneakers: [SneakerRow]) -> [SneakerRow] {
+        guard sneakers.count > 1 else { return sneakers }
+        
+        // Group by derived model key (tries to isolate silhouette/model, not colorway).
+        var modelGroups: [String: [SneakerRow]] = [:]
+        for sneaker in sneakers {
+            let key = modelKey(for: sneaker)
+            modelGroups[key, default: []].append(sneaker)
+        }
+        
+        if modelGroups.count == 1 {
+            return sneakers.shuffled()
+        }
+        
+        // Shuffle within each model group so colorways rotate.
+        for key in modelGroups.keys {
+            modelGroups[key]?.shuffle()
+        }
+        
+        // Interleave models; remove exhausted models as we go to avoid streaks.
+        var activeModels = modelGroups.keys.sorted { (a, b) -> Bool in
+            (modelGroups[a]?.count ?? 0) > (modelGroups[b]?.count ?? 0)
+        }
+        
+        var result: [SneakerRow] = []
+        result.reserveCapacity(sneakers.count)
+        
+        var idx = 0
+        var safety = 0
+        while result.count < sneakers.count && !activeModels.isEmpty && safety < 10_000 {
+            safety += 1
+            
+            if idx >= activeModels.count { idx = 0 }
+            let key = activeModels[idx]
+            
+            guard var queue = modelGroups[key], !queue.isEmpty else {
+                activeModels.removeAll { $0 == key }
+                continue
+            }
+            
+            result.append(queue.removeFirst())
+            modelGroups[key] = queue
+            
+            if queue.isEmpty {
+                activeModels.removeAll { $0 == key }
+                if idx >= activeModels.count { idx = 0 }
+            } else {
+                idx += 1
+            }
+        }
+        
+        return result
+    }
+    
+    /// Derives a model key from the shoe name. This is a best-effort silhouette/model extractor
+    /// (because the DB doesn't contain `style_id`/`sku`). Goal: group colorways together.
+    private func modelKey(for sneaker: SneakerRow) -> String {
+        let brand = (sneaker.brand ?? "Unknown").trimmingCharacters(in: .whitespacesAndNewlines)
+        return deriveModelKey(name: sneaker.name, brand: brand)
+    }
+    
+    private func deriveModelKey(name: String, brand: String) -> String {
+        // 1) Strip parenthetical suffixes like (GS), (TD), (2025), etc.
+        var s = name
+            .replacingOccurrences(of: "\\s*\\([^\\)]*\\)\\s*$", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 2) Split on common separators where the right side is often a colorway/pack.
+        if let dashRange = s.range(of: " - ") {
+            s = String(s[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        // 3) Remove brand prefix if present, to better isolate the model tokens.
+        let lower = s.lowercased()
+        let brandLower = brand.lowercased()
+        if lower.hasPrefix(brandLower + " ") {
+            s = String(s.dropFirst(brandLower.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        // 4) Token cleanup: remove common suffix tokens that don't define silhouette.
+        // Keep important variant tokens like low/mid/high, max numbers, etc.
+        let removableTokens: Set<String> = [
+            "retro", "og", "premium", "prm", "se", "sp", "qs", "pe", "gs", "ps", "td",
+            "men's", "w", "wmns", "women's", "kids", "toddler", "infant",
+            "2020", "2021", "2022", "2023", "2024", "2025", "2026"
+        ]
+        let colorwayTokens: Set<String> = [
+            "black","white","red","blue","green","grey","gray","pink","purple","orange","yellow","brown","beige","tan",
+            "cream","sail","ivory","silver","gold","navy","teal","aqua","volt","multi","multicolor"
+        ]
+        
+        var tokens = s
+            .replacingOccurrences(of: "[^A-Za-z0-9]+", with: " ", options: .regularExpression)
+            .lowercased()
+            .split(separator: " ")
+            .map(String.init)
+        
+        // Strip trailing tokens that look like colorway descriptors.
+        while let last = tokens.last, (colorwayTokens.contains(last) || removableTokens.contains(last)) {
+            tokens.removeLast()
+        }
+        
+        // Also strip leading removable tokens (rare, but safe).
+        while let first = tokens.first, removableTokens.contains(first) {
+            tokens.removeFirst()
+        }
+        
+        // If we stripped too far, fall back to first few tokens of original.
+        if tokens.isEmpty {
+            tokens = name.lowercased().split(separator: " ").prefix(4).map(String.init)
+        }
+        
+        // Limit key size to keep grouping stable.
+        let keyTokens = tokens.prefix(5)
+        let key = keyTokens.joined(separator: " ")
+        
+        // Include brand in the key namespace so identical model tokens across brands don't collide.
+        return "\(brand) \(key)".trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     func recordSwipe(_ event: SwipeEvent) async throws {
