@@ -150,7 +150,7 @@ final class SemanticSearchService: @unchecked Sendable {
             
             var request = URLRequest(url: rpcURL)
             request.httpMethod = "POST"
-            request.timeoutInterval = 10  // Reduced from 30s - faster fail if slow
+            request.timeoutInterval = 5  // HNSW + optimized query = super fast!
             request.cachePolicy = .reloadIgnoringLocalCacheData  // Don't cache POST requests
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("keep-alive", forHTTPHeaderField: "Connection")  // Connection reuse
@@ -201,14 +201,17 @@ final class SemanticSearchService: @unchecked Sendable {
             return results
         }
         
-        // SPEED: Try with 40 results first (faster), fallback to 60 if needed
-        var results = try await rpcCall(threshold: 0.6, genderFilter: normalizedGender, requestedCount: 40)
-        logger.info("Found \(results.count, privacy: .public) matches at threshold=0.6 gender=\(normalizedGender ?? "any", privacy: .public)")
+        // MAXIMUM RESULTS: Scan ALL 18k shoes, get up to 500 results
+        // HNSW makes this blazing fast even with full database scan!
+        var results = try await rpcCall(threshold: 0.35, genderFilter: normalizedGender, requestedCount: 500)
+        logger.info("Found \(results.count, privacy: .public) matches at threshold=0.35 gender=\(normalizedGender ?? "any", privacy: .public)")
         
         var usedFallback = false
-        if results.isEmpty {
-            logger.info("0 matches at threshold=0.6; falling back to top matches (threshold=-1, keeping gender+price)")
-            results = try await rpcCall(threshold: -1.0, genderFilter: normalizedGender, requestedCount: 60)
+        if results.count < 50 {
+            // If we got very few results, get top matches regardless of similarity
+            // This ensures even sparse queries return maximum variety
+            logger.info("Only \(results.count, privacy: .public) matches at threshold=0.35; getting top 500 matches (threshold=-1)")
+            results = try await rpcCall(threshold: -1.0, genderFilter: normalizedGender, requestedCount: 500)
             logger.info("Fallback returned \(results.count, privacy: .public) matches (gender=\(normalizedGender ?? "any", privacy: .public))")
             usedFallback = true
         }
