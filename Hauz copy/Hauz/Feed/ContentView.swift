@@ -1171,16 +1171,16 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "door.left.hand.open")
                                     .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.red)
+                                    .foregroundColor(Color("HauzFocus"))
                                     .frame(width: 32, height: 32)
                                     .background(
                                         Circle()
-                                            .fill(Color.red.opacity(0.1))
+                                            .fill(Color("HauzFocus").opacity(0.1))
                                     )
                                 
                                 Text("Log Out")
                                     .font(.custom("Outfit-Black", size: 16))
-                                    .foregroundColor(.red)
+                                    .foregroundColor(Color("HauzFocus"))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 
                                 Image(systemName: "chevron.right")
