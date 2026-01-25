@@ -1121,9 +1121,9 @@ struct SettingsView: View {
                         Divider()
                             .background(Color("HauzFocus").opacity(0.2))
                         
-                        SettingsRow(icon: "bell.fill", title: "Notifications", action: {
+                        /*SettingsRow(icon: "bell.fill", title: "Notifications", action: {
                             print("Notifications tapped")
-                        })
+                        })*/
                     }
                     
                     // MARK: General Section
@@ -1135,9 +1135,9 @@ struct SettingsView: View {
                         Divider()
                             .background(Color("HauzFocus").opacity(0.2))
                         
-                        SettingsRow(icon: "globe", title: "Language", action: {
+                        /*SettingsRow(icon: "globe", title: "Language", action: {
                             print("Language tapped")
-                        })
+                        })*/
                     }
                     
                     // MARK: Support Section
