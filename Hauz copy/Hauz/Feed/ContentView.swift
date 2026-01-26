@@ -1156,9 +1156,9 @@ struct SettingsView: View {
                         Divider()
                             .background(Color("HauzFocus").opacity(0.2))
                         
-                        SettingsRow(icon: "chart.bar", title: "Privacy & Data", action: {
+                        /*SettingsRow(icon: "chart.bar", title: "Privacy & Data", action: {
                             print("Privacy tapped")
-                        })
+                        })*/
                     }
                     
                     // MARK: Logout Section
