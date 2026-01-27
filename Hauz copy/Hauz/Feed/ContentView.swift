@@ -941,14 +941,18 @@ struct FilterView: View {
         showError = nil
         showNotice = nil
         
-        // Step 1: Update profile preferences (non-blocking, fire and forget)
-        Task.detached(priority: .userInitiated) {
-            await updateProfilePreferences()
-        }
+        // Step 1: Update profile preferences (ensure filters apply immediately)
+        await updateProfilePreferences()
         
         // Step 2: Load feed with filters (brand-based filtering)
         // Natural language search is commented out - using brand filters instead
-        await performRegularLoadWithFallback()
+        await feedService.loadWithFilters(
+            gender: selectedGender.label,
+            brands: selectedBrands,
+            priceMin: lowerLimit,
+            priceMax: upperLimit,
+            randomizeOffsets: false
+        )
         
         await MainActor.run {
             isApplying = false
