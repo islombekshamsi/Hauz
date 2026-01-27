@@ -37,6 +37,7 @@ final class FeedService: ObservableObject {
     @Published private(set) var isSemanticSearchActive: Bool = false
     @Published private(set) var currentSearchQuery: String?
     @Published private(set) var semanticSearchNotice: String?
+    @Published private(set) var returnDisabledIDs: Set<UUID> = []
     
     private var swipedRightIDs: Set<UUID> = []
     private var swipedLeftIDs: Set<UUID> = []
@@ -53,6 +54,7 @@ final class FeedService: ObservableObject {
             let swipes = try await fetchSwipes()
             swipedRightIDs = Set(swipes.filter { $0.direction == "right" }.map { $0.sneakerID })
             swipedLeftIDs = Set(swipes.filter { $0.direction == "left" }.map { $0.sneakerID })
+            returnDisabledIDs = (try? await fetchReturnDisabledIDs()) ?? []
             
             preferredOffset = 0
             exploratoryOffset = 0
@@ -80,6 +82,73 @@ final class FeedService: ObservableObject {
         } catch {
             debugPrint("FeedService load error: \(error)")
         }
+    }
+    
+    /// Load feed using explicit filter values (wand-safe, deterministic by default).
+    func loadWithFilters(
+        gender: String,
+        brands: [String],
+        priceMin: Double,
+        priceMax: Double,
+        randomizeOffsets: Bool = false
+    ) async {
+        do {
+            let swipes = try await fetchSwipes()
+            swipedRightIDs = Set(swipes.filter { $0.direction == "right" }.map { $0.sneakerID })
+            swipedLeftIDs = Set(swipes.filter { $0.direction == "left" }.map { $0.sneakerID })
+            returnDisabledIDs = (try? await fetchReturnDisabledIDs()) ?? []
+            
+            if randomizeOffsets {
+                let jitter = Int.random(in: 0...400)
+                preferredOffset = jitter
+                exploratoryOffset = jitter
+            } else {
+                preferredOffset = 0
+                exploratoryOffset = 0
+            }
+            lastSearchSignature = nil
+            isSemanticSearchActive = false
+            currentSearchQuery = nil
+            semanticSearchNotice = nil
+            
+            let profileOverride = Profile(
+                id: nil,
+                username: nil,
+                fullName: nil,
+                gender: gender,
+                avatarURL: nil,
+                brands: brands,
+                phoneNumber: nil,
+                priceMin: priceMin,
+                priceMax: priceMax,
+                swipedRightIds: nil,
+                swipedLeftIds: nil,
+                updatedAt: nil
+            )
+            cachedProfile = profileOverride
+            
+            let cards = try await fetchSneakers(profile: profileOverride, preferredOffset: preferredOffset, exploratoryOffset: exploratoryOffset)
+            feed = cards
+            noResultsForFilters = cards.isEmpty
+            
+            preferredOffset += pageSize
+            exploratoryOffset += pageSize
+        } catch {
+            debugPrint("FeedService loadWithFilters error: \(error)")
+        }
+    }
+    
+    /// Random exploration using the same filter pipeline (gender only).
+    func loadRandomExploration() async {
+        let profile = await fetchProfileOrNil()
+        let gender = profile?.gender ?? ""
+        await loadWithFilters(
+            gender: gender,
+            brands: [],
+            priceMin: 0,
+            priceMax: 10000,
+            randomizeOffsets: true
+        )
     }
     
     /// Load more feed items when running low.
@@ -146,6 +215,42 @@ final class FeedService: ObservableObject {
             debugPrint("FeedService loadMore error: \(error)")
         }
     }
+    
+    /*
+    /// Load a random exploratory batch (gender-only, no filters).
+    func loadExploratoryGenderOnly() async {
+        do {
+            let profile = await fetchProfileOrNil()
+            cachedProfile = profile
+            let gender = profile?.gender
+            let excluded = swipedRightIDs.union(swipedLeftIDs)
+            
+            let cards = try await querySneakersGenderOnly(
+                limit: pageSize,
+                offset: 0,
+                gender: gender,
+                excludeIDs: excluded
+            )
+            
+            feed = cards.map { row in
+                SneakerCard(
+                    id: row.id,
+                    name: row.name,
+                    brand: row.brand ?? "Unknown",
+                    price: row.retail_price,
+                    imageURL: row.image_url.flatMap(URL.init),
+                    gender: row.gender,
+                    stockxLink: row.link,
+                    colors: row.colors
+                )
+            }
+            
+            noResultsForFilters = feed.isEmpty
+        } catch {
+            debugPrint("Exploratory gender-only load error: \(error)")
+        }
+    }
+    */
 
     /// Lightweight fetch for ProfileView (public so ProfileView can reuse).
     func fetchLikedForProfile() async throws -> [SneakerCard] {
@@ -165,6 +270,45 @@ final class FeedService: ObservableObject {
             try await recordSwipe(event)
         } catch {
             debugPrint("Failed to record swipe: \(error)")
+        }
+    }
+    
+    /// Undo a left swipe by removing it from the database and restoring the card.
+    func undoLeftSwipe(_ sneaker: SneakerCard) async {
+        do {
+            let session = try await supabase.auth.session
+            _ = try await supabase
+                .from("user_swipes")
+                .delete()
+                .eq("user_id", value: session.user.id)
+                .eq("sneaker_id", value: sneaker.id)
+                .eq("direction", value: "left")
+                .execute()
+            
+            struct ReturnPayload: Encodable {
+                let user_id: UUID
+                let sneaker_id: UUID
+            }
+            let payload = ReturnPayload(user_id: session.user.id, sneaker_id: sneaker.id)
+            do {
+                _ = try await supabase
+                    .from("user_swipe_returns")
+                    .upsert(payload, onConflict: "user_id,sneaker_id")
+                    .execute()
+                returnDisabledIDs.insert(sneaker.id)
+            } catch {
+                debugPrint("Return tracking not available: \(error)")
+            }
+        } catch {
+            debugPrint("Failed to undo left swipe: \(error)")
+            return
+        }
+        
+        swipedLeftIDs.remove(sneaker.id)
+        
+        if !feed.contains(where: { $0.id == sneaker.id }) {
+            feed.insert(sneaker, at: 0)
+            noResultsForFilters = false
         }
     }
     
@@ -326,6 +470,18 @@ private extension FeedService {
             .execute()
             .value
         return rows.map { .init(sneakerID: $0.sneaker_id, direction: $0.direction) }
+    }
+    
+    func fetchReturnDisabledIDs() async throws -> Set<UUID> {
+        let session = try await supabase.auth.session
+        struct Row: Decodable { let sneaker_id: UUID }
+        let rows: [Row] = try await supabase
+            .from("user_swipe_returns")
+            .select("sneaker_id")
+            .eq("user_id", value: session.user.id)
+            .execute()
+            .value
+        return Set(rows.map { $0.sneaker_id })
     }
     
     func fetchLikedDetails() async throws -> [SneakerCard] {
@@ -520,6 +676,8 @@ private extension FeedService {
                 .gt("retail_price", value: 0)  // Must be greater than $0
                 .gte("retail_price", value: priceMin)
                 .lte("retail_price", value: priceMax)
+                .not("image_url", operator: .is, value: "null")
+                .neq("image_url", value: "")
             
             let rows: [SneakerRow] = try await query
                 .order("created_at", ascending: false)
@@ -552,6 +710,68 @@ private extension FeedService {
         
         return diversified
     }
+    
+    /*
+    func querySneakersGenderOnly(
+        limit: Int,
+        offset: Int,
+        gender: String?,
+        excludeIDs: Set<UUID>
+    ) async throws -> [SneakerRow] {
+        var collected: [SneakerRow] = []
+        var attempts = 0
+        let maxAttempts = 5
+        let batchSize = 100
+        
+        let normalizedGender: String? = {
+            guard let gender = gender else { return nil }
+            switch gender.lowercased() {
+            case "male": return "men"
+            case "female": return "women"
+            default: return gender.lowercased()
+            }
+        }()
+        
+        while collected.count < limit && attempts < maxAttempts {
+            let randomOffset = offset + (attempts * batchSize) + Int.random(in: 0...200)
+            
+            var query = supabase
+                .from("sneakers_only")
+                .select("""
+                    id,
+                    name,
+                    brand,
+                    image_url,
+                    retail_price,
+                    gender,
+                    link,
+                    colors
+                """)
+            
+            if let normalizedGender, !normalizedGender.isEmpty {
+                query = query.eq("gender", value: normalizedGender)
+            }
+            
+            let rows: [SneakerRow] = try await query
+                .order("created_at", ascending: false)
+                .range(from: randomOffset, to: randomOffset + batchSize - 1)
+                .execute()
+                .value
+            
+            let collectedIDs = Set(collected.map { $0.id })
+            let freshRows = rows.filter { !excludeIDs.contains($0.id) && !collectedIDs.contains($0.id) }
+            
+            collected.append(contentsOf: freshRows)
+            attempts += 1
+            
+            if freshRows.isEmpty && rows.count < batchSize {
+                break
+            }
+        }
+        
+        return diversifyByBrand(collected, targetCount: limit)
+    }
+    */
     
     /// Fetch a quota per selected brand, then interleave to prevent one brand/model dominating.
     /// This is intentionally used only when brands.count is small (<= 8) to avoid excessive network calls.
@@ -609,6 +829,8 @@ private extension FeedService {
                     .gt("retail_price", value: 0)
                     .gte("retail_price", value: priceMin)
                     .lte("retail_price", value: priceMax)
+                    .not("image_url", operator: .is, value: "null")
+                    .neq("image_url", value: "")
                 
                 let rows: [SneakerRow] = try await query
                     .order("created_at", ascending: false)
