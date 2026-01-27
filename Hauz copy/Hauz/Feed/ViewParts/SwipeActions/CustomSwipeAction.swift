@@ -1,36 +1,45 @@
 import SwiftUI
+import UIKit
 
-struct Action: Identifiable{
+struct Action: Identifiable {
     var id = UUID().uuidString
     var symbolImage: String
     var tint: Color
     var background: Color
     
     var font: Font = .title3
-    var size: CGSize = .init(width: 80 ,height: 80)
+    var size: CGSize = .init(width: 80, height: 80)
     var shape: some Shape = .circle
     var action: (inout Bool) -> ()
 }
 
-
 @resultBuilder
-struct ActionBuilder{
-    static func buildBlock(_ components: Action...)-> [Action] {
+struct ActionBuilder {
+    static func buildBlock(_ components: Action...) -> [Action] {
         return components
     }
 }
 
-struct ActionConfig{
+struct ActionConfig {
     var leadingPadding: CGFloat = 0
     var trailingPadding: CGFloat = 10
     var spacing: CGFloat = 10
     var occupiesFullWidth: Bool = true
+    /// Space between card and action bubble when revealed
+    var detachedGap: CGFloat = 14
+    /// Circular delete button diameter
+    var deleteDiameter: CGFloat = 58
+    /// Reveal threshold (fraction of cell width)
+    var revealThreshold: CGFloat = 0.3
+    /// Full reveal distance (fraction of cell width)
+    var fullReveal: CGFloat = 0.65
+    /// Allow rubber-band past full reveal (fraction of cell width)
+    var maxReveal: CGFloat = 0.75
 }
 
-extension View{
-    
+extension View {
     @ViewBuilder
-    func swipeActions(config: ActionConfig = .init(), @ActionBuilder actions: () -> [Action])->some View{
+    func swipeActions(config: ActionConfig = .init(), @ActionBuilder actions: () -> [Action]) -> some View {
         self
             .modifier(CustomSwipeActionModifier(config: config, actions: actions()))
     }
@@ -38,13 +47,13 @@ extension View{
 
 @MainActor
 @Observable
-class SwipeActionSharedData{
+class SwipeActionSharedData {
     static let shared = SwipeActionSharedData()
     
     var activeSwipeAction: String?
 }
 
-fileprivate struct CustomSwipeActionModifier: ViewModifier{
+fileprivate struct CustomSwipeActionModifier: ViewModifier {
     var config: ActionConfig
     var actions: [Action]
     
@@ -53,160 +62,161 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier{
     @State private var lastStoredOffsetX: CGFloat = 0
     @State private var bounceOffset: CGFloat = 0
     @State private var progress: CGFloat = 0
-    @State private var deleteButtonExpansion: CGFloat = 0 // For horizontal expansion
-    @State private var shouldAutoDelete: Bool = false
+    @State private var didTriggerHaptic: Bool = false
+    @State private var contentWidth: CGFloat = 0
     
     @State private var currentScrollOffset: CGFloat = 0
     @State private var storedScrollOffset: CGFloat?
     var sharedData = SwipeActionSharedData.shared
     @State private var currentID: String = UUID().uuidString
-    func body(content: Content) -> some View{
+    
+    func body(content: Content) -> some View {
         ZStack(alignment: .trailing) {
-            // Background action buttons
-            ActionsView()
+            // Background action buttons - positioned independently
+            DeleteButtonView(
+                progress: progress,
+                action: actions.last,
+                diameter: config.deleteDiameter,
+                trailingPadding: config.trailingPadding,
+                resetPositionTrigger: $resetPositionTrigger
+            )
+            .frame(maxWidth: .infinity, alignment: .trailing)
             
             // Main content on top
             content
                 .offset(x: offsetX)
                 .offset(x: bounceOffset)
-                .gesture(
-                    PanGesture(onBegan:{
-                        gestureDidBegan()
-                    }, onChange: { value in
-                        gestureDidChange(translation: value.translation)
-                    }, onEnded:{ value in
-                        gestureDidEnded(translation: value.translation, velocity: value.velocity)
-                    })
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if offsetX != 0 {
+                        reset()
+                    }
+                }
+                .highPriorityGesture(
+                    DragGesture()
+                        .onChanged { value in
+                            gestureDidChange(translation: value.translation)
+                        }
+                        .onEnded { value in
+                            gestureDidEnded(translation: value.translation, velocity: value.velocity)
+                        }
                 )
         }
-        .onChange(of: resetPositionTrigger){oldValue, newValue in
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { contentWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, newValue in
+                        contentWidth = newValue
+                    }
+            }
+        )
+        .onChange(of: resetPositionTrigger) { oldValue, newValue in
             reset()
         }
-        .onGeometryChange(for: CGFloat.self){
-            $0.frame(in: .scrollView).minY
-        } action: {newValue in
-            if let storedScrollOffset, storedScrollOffset != newValue{
+        .onChange(of: sharedData.activeSwipeAction) { oldValue, newValue in
+            if newValue != currentID && offsetX != 0 {
                 reset()
             }
-            
         }
-        .onChange(of: sharedData.activeSwipeAction){oldValue, newValue in
-            if newValue != currentID && offsetX != 0{
-                reset()
-            }
-            
-        }
+        .clipped()
     }
     
-    @ViewBuilder
-    func ActionsView() -> some View{
-        HStack(spacing: config.spacing) {
-            ForEach(actions.indices, id: \.self) { index in
-                let action = actions[index]
-                let isLastAction = index == actions.count - 1
+    private struct DeleteButtonView: View {
+        let progress: CGFloat
+        let action: Action?
+        let diameter: CGFloat
+        let trailingPadding: CGFloat
+        @Binding var resetPositionTrigger: Bool
+        
+        var body: some View {
+            if let action = action {
+                let easedProgress = easeOutProgress(progress)
+                let buttonWidth = max(2, diameter * easedProgress)
+                let iconOpacity = iconOpacityFor(progress: progress, width: buttonWidth)
                 
-                if isLastAction {
-                    // 🔥 DELETE BUTTON - Expands horizontally like iMessage
-                    let buttonWidth = action.size.width + (deleteButtonExpansion * 180)
-                    let cornerRadius = action.size.height / 2
-                    
-                    Button {
-                        // Tap to trigger auto-expand + delete
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                            deleteButtonExpansion = 1.0
-                            offsetX = -maxOffsetWidth * 1.5
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                            action.action(&resetPositionTrigger)
-                        }
-                    } label: {
-                        ZStack {
-                            // Background that expands
-                            RoundedRectangle(cornerRadius: cornerRadius)
-                                .fill(action.background)
-                                .frame(width: buttonWidth, height: action.size.height)
-                            
-                            // Icon stays on the right
-                            HStack(spacing: -10) {
-                                Spacer()
-                                Image(systemName: action.symbolImage)
-                                    .font(action.font)
-                                    .foregroundStyle(action.tint)
-                                    .frame(width: action.size.width)
-                            }
-                            .frame(width: buttonWidth, height: action.size.height)
-                        }
-                    }
-                    .frame(height: action.size.height)
-                } else {
-                    // Regular button (non-expanding)
-                    Button {
-                        action.action(&resetPositionTrigger)
-                    } label: {
+                Button {
+                    action.action(&resetPositionTrigger)
+                } label: {
+                    ZStack(alignment: .trailing) {
+                        // Expanding circle - starts from right edge
+                        RoundedRectangle(cornerRadius: diameter / 2)
+                            .fill(action.background)
+                            .frame(width: buttonWidth, height: diameter)
+                            .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 2)
+                        
+                        // Icon - appears as button expands
                         Image(systemName: action.symbolImage)
-                            .font(action.font)
-                            .foregroundStyle(action.tint)
-                            .frame(width: action.size.width, height: action.size.height)
-                            .background(action.background, in: action.shape)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white)
+                            .opacity(iconOpacity)
+                            .frame(width: diameter, height: diameter)
                     }
+                    // CRITICAL: This makes it expand from right edge
+                    .frame(width: buttonWidth, height: diameter, alignment: .trailing)
                 }
+                .frame(width: buttonWidth, height: diameter, alignment: .trailing)
+                .padding(.trailing, trailingPadding)
+                .buttonStyle(.plain)
+                .pressStyle(scale: 0.95)
+                .allowsHitTesting(progress > 0.8) // Only allow taps when fully revealed
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: progress)
             }
         }
-        .padding(.trailing, config.trailingPadding)
-        .padding(.leading, config.leadingPadding)
-    }
-    
-    private func gestureDidBegan(){
-        storedScrollOffset = lastStoredOffsetX
-        sharedData.activeSwipeAction = currentID
-    }
-    
-    private func gestureDidChange(translation: CGSize){
-        offsetX = min(max(translation.width + lastStoredOffsetX, -maxOffsetWidth * 1.5), 0)
-        progress = -offsetX/maxOffsetWidth
         
-        // Calculate delete button horizontal expansion (iMessage style)
-        // Start expanding earlier for smoother feel
-        let expansionThreshold = maxOffsetWidth * 0.75
-        if -offsetX > expansionThreshold {
-            // Smooth expansion curve
-            let extraDistance = -offsetX - expansionThreshold
-            let expansionRange = maxOffsetWidth * 0.5
-            deleteButtonExpansion = min(extraDistance / expansionRange, 1.0)
-            // Trigger auto-delete at 85% expansion
-            shouldAutoDelete = deleteButtonExpansion > 0.85
-        } else {
-            deleteButtonExpansion = 0
-            shouldAutoDelete = false
+        private func easeOutProgress(_ value: CGFloat) -> CGFloat {
+            let clamped = min(max(value, 0), 1)
+            return 1 - pow(1 - clamped, 3)
         }
         
-        bounceOffset = min(translation.width - (offsetX - lastStoredOffsetX), 0) / 10
+        private func iconOpacityFor(progress: CGFloat, width: CGFloat) -> CGFloat {
+            // Show icon when button is mostly expanded
+            if width < diameter * 0.6 { return 0 }
+            return min(max((progress - 0.6) / 0.4, 0), 1)
+        }
     }
     
-    private func gestureDidEnded(translation: CGSize, velocity: CGSize){
+    private func gestureDidChange(translation: CGSize) {
+        let fullReveal = maxRevealDistance
+        let desired = translation.width + lastStoredOffsetX
+        
+        // Limit swipe to left only
+        if desired < -fullReveal {
+            // Rubber band effect when swiping past full reveal
+            let extra = abs(desired) - fullReveal
+            let damped = extra * 0.25
+            offsetX = -(fullReveal + damped)
+            progress = 1.0
+        } else if desired <= 0 {
+            // Normal swipe
+            offsetX = desired
+            progress = min(max(abs(desired) / fullReveal, 0), 1)
+        } else {
+            // Swiping right - reset
+            offsetX = 0
+            progress = 0
+        }
+        
+        // Calculate bounce offset for rubber band effect
+        bounceOffset = min(translation.width - (offsetX - lastStoredOffsetX), 0) / 8
+        
+        // Haptic feedback when button is fully revealed
+        if progress >= 0.95 && !didTriggerHaptic {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            didTriggerHaptic = true
+        }
+    }
+    
+    private func gestureDidEnded(translation: CGSize, velocity: CGSize) {
         let endTarget = velocity.width + offsetX
         
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)){
-            // Auto-delete if expanded far enough (iMessage style)
-            if shouldAutoDelete || deleteButtonExpansion > 0.85 {
-                // Trigger delete action
-                if actions.count > 0 {
-                    // Full expansion animation before deleting
-                    deleteButtonExpansion = 1.0
-                    offsetX = -maxOffsetWidth * 1.5
-                    
-                    // Execute delete action after smooth animation
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        actions[actions.count - 1].action(&resetPositionTrigger)
-                    }
-                }
-            }
-            // Standard swipe behavior - snap to revealed position
-            else if -endTarget > (maxOffsetWidth * 0.5) {
-                offsetX = -maxOffsetWidth
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            // If swiped enough or has sufficient velocity, reveal fully
+            if abs(endTarget) > (contentWidth * config.revealThreshold) || velocity.width < -300 {
+                offsetX = -maxRevealDistance
                 bounceOffset = 0
-                progress = 1
-                deleteButtonExpansion = 0
+                progress = 1.0
             } else {
                 // Snap back to closed
                 reset()
@@ -215,30 +225,38 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier{
         lastStoredOffsetX = offsetX
     }
     
-    private func reset(){
-        withAnimation(.snappy(duration: 0.3, extraBounce: 0)){
+    private func reset() {
+        withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
             offsetX = 0
             lastStoredOffsetX = 0
             progress = 0
             bounceOffset = 0
-            deleteButtonExpansion = 0
-            shouldAutoDelete = false
+            didTriggerHaptic = false
         }
         
         storedScrollOffset = nil
     }
     
-    var maxOffsetWidth: CGFloat{
-        let totalActionSize: CGFloat = actions.reduce(.zero){partialResult, action in
-            partialResult + action.size.width
-        }
-        
-        let spacing = config.spacing * CGFloat(actions.count - 1)
-        
-        return totalActionSize + spacing + config.leadingPadding + config.trailingPadding
+    var maxRevealDistance: CGFloat {
+        max(0, contentWidth * min(max(config.fullReveal, 0.1), 0.9))
     }
 }
 
-#Preview{
+private extension View {
+    func pressStyle(scale: CGFloat) -> some View {
+        self.buttonStyle(PressScaleButtonStyle(scale: scale))
+    }
+}
+
+private struct PressScaleButtonStyle: ButtonStyle {
+    let scale: CGFloat
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+#Preview {
     SwiftUIView()
 }
