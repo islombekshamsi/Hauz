@@ -8,6 +8,7 @@ struct MainView: View {
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var showFilterSettings = false
+    @State private var lastLeftSwipedSneaker: SneakerCard?
     
     var body: some View {
         ZStack {
@@ -31,9 +32,16 @@ struct MainView: View {
                         cards: feedService.feed.map { $0.asCardData },
                         isLoadingMore: isLoadingMore,
                         noResultsForFilters: feedService.noResultsForFilters,
-                        onSwipe: { id, direction in
+                        onSwipe: { card, direction in
+                            if direction == "left" {
+                                if feedService.returnDisabledIDs.contains(card.id) {
+                                    lastLeftSwipedSneaker = nil
+                                } else {
+                                    lastLeftSwipedSneaker = feedService.feed.first { $0.id == card.id }
+                                }
+                            }
                             Task {
-                                await feedService.swipe(SwipeEvent(sneakerID: id, direction: direction))
+                                await feedService.swipe(SwipeEvent(sneakerID: card.id, direction: direction))
                             }
                         },
                         onNeedMore: {
@@ -72,7 +80,7 @@ struct SneakersView: View {
     let cards: [CardData]
     let isLoadingMore: Bool
     let noResultsForFilters: Bool
-    var onSwipe: (UUID, String) -> Void
+    var onSwipe: (CardData, String) -> Void
     var onNeedMore: () -> Void
     
     var body: some View {
@@ -140,7 +148,7 @@ struct SneakersView: View {
                 ZStack {
                     ForEach(visibleCards) { card in
                         CardView(card: card) { direction in
-                            onSwipe(card.id, direction)
+                            onSwipe(card, direction)
                         }
                         .stacked(at: indexOf(card), in: visibleCards.count)
                     }
@@ -411,17 +419,64 @@ extension View {
     }
 }
 
-private var header: some View {
-    HStack(spacing: 0) {
-        Text("Hauz")
-            .font(.custom("bernoru-blackultraexpanded", size: 40))
-            .foregroundStyle(Color("HauzFocus"))
-            .frame(maxWidth: .infinity, alignment: .center)
-            .background(Color("HauzBg"))
+private extension MainView {
+    var header: some View {
+        let buttonSize: CGFloat = 36
+        return HStack(spacing: 0) {
+            Button {
+                guard let sneaker = lastLeftSwipedSneaker else { return }
+                Task {
+                    await feedService.undoLeftSwipe(sneaker)
+                    lastLeftSwipedSneaker = nil
+                }
+            } label: {
+                Image(systemName: "arrow.uturn.left")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color("HauzFocus"))
+                    .frame(width: buttonSize, height: buttonSize)
+                    .background(
+                        Circle()
+                            .fill(Color("HauzBg"))
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(lastLeftSwipedSneaker == nil)
+            .opacity(lastLeftSwipedSneaker == nil ? 0.35 : 1.0)
+            .padding(.leading, 16)
+            
+            Spacer()
+            
+            Text("Hauz")
+                .font(.custom("bernoru-blackultraexpanded", size: 40))
+                .foregroundStyle(Color("HauzFocus"))
+                .frame(maxWidth: .infinity, alignment: .center)
+                .background(Color("HauzBg"))
+            
+            Spacer()
+            
+            Button {
+                Task {
+                    isLoading = true
+                    await feedService.loadRandomExploration()
+                    isLoading = false
+                }
+            } label: {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color("HauzFocus"))
+                    .frame(width: buttonSize, height: buttonSize)
+                    .background(
+                        Circle()
+                            .fill(Color("HauzBg"))
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 16)
+        }
+        .font(.title2)
+        .fontWeight(.medium)
+        .foregroundStyle(Color.black)
     }
-    .font(.title2)
-    .fontWeight(.medium)
-    .foregroundStyle(Color.black)
 }
 
 struct StyleView: View {
