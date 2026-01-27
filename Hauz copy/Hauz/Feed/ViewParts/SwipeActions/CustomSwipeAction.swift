@@ -26,7 +26,7 @@ struct ActionConfig {
     var spacing: CGFloat = 10
     var occupiesFullWidth: Bool = true
     /// Space between card and action bubble when revealed
-    var detachedGap: CGFloat = 14
+    var detachedGap: CGFloat = 8
     /// Circular delete button diameter
     var deleteDiameter: CGFloat = 58
     /// Reveal threshold (fraction of cell width)
@@ -74,7 +74,7 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
         ZStack(alignment: .trailing) {
             // Background action buttons - positioned independently
             DeleteButtonView(
-                progress: progress,
+                revealWidth: max(0, min(config.deleteDiameter * 1.6, -offsetX - config.trailingPadding - config.detachedGap)),
                 action: actions.last,
                 diameter: config.deleteDiameter,
                 trailingPadding: config.trailingPadding,
@@ -123,7 +123,7 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
     }
     
     private struct DeleteButtonView: View {
-        let progress: CGFloat
+        let revealWidth: CGFloat
         let action: Action?
         let diameter: CGFloat
         let trailingPadding: CGFloat
@@ -131,16 +131,15 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
         
         var body: some View {
             if let action = action {
-                let easedProgress = easeOutProgress(progress)
-                let buttonWidth = max(2, diameter * easedProgress)
-                let iconOpacity = iconOpacityFor(progress: progress, width: buttonWidth)
+                let buttonWidth = max(2, revealWidth)
+                let iconOpacity = iconOpacityFor(width: buttonWidth)
                 
                 Button {
                     action.action(&resetPositionTrigger)
                 } label: {
                     ZStack(alignment: .trailing) {
-                        // Expanding circle - starts from right edge
-                        RoundedRectangle(cornerRadius: diameter / 2)
+                        // Expanding capsule - starts from right edge
+                        Capsule()
                             .fill(action.background)
                             .frame(width: buttonWidth, height: diameter)
                             .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 2)
@@ -159,20 +158,16 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
                 .padding(.trailing, trailingPadding)
                 .buttonStyle(.plain)
                 .pressStyle(scale: 0.95)
-                .allowsHitTesting(progress > 0.8) // Only allow taps when fully revealed
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: progress)
+                .allowsHitTesting(buttonWidth >= diameter * 0.6) // Allow taps once visible
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: buttonWidth)
             }
         }
         
-        private func easeOutProgress(_ value: CGFloat) -> CGFloat {
-            let clamped = min(max(value, 0), 1)
-            return 1 - pow(1 - clamped, 3)
-        }
-        
-        private func iconOpacityFor(progress: CGFloat, width: CGFloat) -> CGFloat {
+        private func iconOpacityFor(width: CGFloat) -> CGFloat {
             // Show icon when button is mostly expanded
-            if width < diameter * 0.6 { return 0 }
-            return min(max((progress - 0.6) / 0.4, 0), 1)
+            if width < 40 { return 0 }
+            let clamped = min(max((width - 40) / (diameter - 40), 0), 1)
+            return clamped
         }
     }
     
@@ -206,6 +201,12 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
             generator.impactOccurred()
             didTriggerHaptic = true
         }
+        
+#if DEBUG
+        if Int(translation.width) % 10 == 0 {
+            print("🧹 Swipe debug: offsetX=\(offsetX), progress=\(String(format: "%.2f", progress)), buttonWidth=\(String(format: "%.1f", config.deleteDiameter * debugEaseOutProgress(progress)))")
+        }
+#endif
     }
     
     private func gestureDidEnded(translation: CGSize, velocity: CGSize) {
@@ -213,7 +214,7 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
         
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             // If swiped enough or has sufficient velocity, reveal fully
-            if abs(endTarget) > (contentWidth * config.revealThreshold) || velocity.width < -300 {
+            if abs(endTarget) > (maxRevealDistance * config.revealThreshold) || velocity.width < -300 {
                 offsetX = -maxRevealDistance
                 bounceOffset = 0
                 progress = 1.0
@@ -239,6 +240,11 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
     
     var maxRevealDistance: CGFloat {
         max(0, contentWidth * min(max(config.fullReveal, 0.1), 0.9))
+    }
+    
+    private func debugEaseOutProgress(_ value: CGFloat) -> CGFloat {
+        let clamped = min(max(value, 0), 1)
+        return 1 - pow(1 - clamped, 2.2)
     }
 }
 
