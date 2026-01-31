@@ -8,8 +8,7 @@ struct MainView: View {
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var showFilterSettings = false
-    @State private var lastLeftSwipedCard: CardData?
-    @State private var showLeftSwipePreview = false
+    @State private var lastLeftSwipedSneaker: SneakerCard?
     
     var body: some View {
         ZStack {
@@ -34,11 +33,15 @@ struct MainView: View {
                         isLoadingMore: isLoadingMore,
                         noResultsForFilters: feedService.noResultsForFilters,
                         onSwipe: { card, direction in
+                            if direction == "left" {
+                                if feedService.returnDisabledIDs.contains(card.id) {
+                                    lastLeftSwipedSneaker = nil
+                                } else {
+                                    lastLeftSwipedSneaker = feedService.feed.first { $0.id == card.id }
+                                }
+                            }
                             Task {
                                 await feedService.swipe(SwipeEvent(sneakerID: card.id, direction: direction))
-                            }
-                            if direction == "left" {
-                                lastLeftSwipedCard = card
                             }
                         },
                         onNeedMore: {
@@ -68,11 +71,6 @@ struct MainView: View {
                 isLoading = true
                 await feedService.load()
                 isLoading = false
-            }
-        }
-        .sheet(isPresented: $showLeftSwipePreview) {
-            if let card = lastLeftSwipedCard {
-                LeftSwipePreviewSheet(card: card)
             }
         }
     }
@@ -426,8 +424,11 @@ private extension MainView {
         let buttonSize: CGFloat = 36
         return HStack(spacing: 0) {
             Button {
-                guard lastLeftSwipedCard != nil else { return }
-                showLeftSwipePreview = true
+                guard let sneaker = lastLeftSwipedSneaker else { return }
+                Task {
+                    await feedService.undoLeftSwipe(sneaker)
+                    lastLeftSwipedSneaker = nil
+                }
             } label: {
                 Image(systemName: "arrow.uturn.left")
                     .font(.system(size: 18, weight: .semibold))
@@ -439,8 +440,8 @@ private extension MainView {
                     )
             }
             .buttonStyle(.plain)
-            .disabled(lastLeftSwipedCard == nil)
-            .opacity(lastLeftSwipedCard == nil ? 0.35 : 1.0)
+            .disabled(lastLeftSwipedSneaker == nil)
+            .opacity(lastLeftSwipedSneaker == nil ? 0.35 : 1.0)
             .padding(.leading, 16)
             
             Spacer()
@@ -453,52 +454,28 @@ private extension MainView {
             
             Spacer()
             
-            Color.clear
-                .frame(width: buttonSize, height: buttonSize)
-                .padding(.trailing, 16)
+            Button {
+                Task {
+                    isLoading = true
+                    await feedService.loadRandomExploration()
+                    isLoading = false
+                }
+            } label: {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color("HauzFocus"))
+                    .frame(width: buttonSize, height: buttonSize)
+                    .background(
+                        Circle()
+                            .fill(Color("HauzBg"))
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 16)
         }
         .font(.title2)
         .fontWeight(.medium)
         .foregroundStyle(Color.black)
-    }
-}
-
-private struct LeftSwipePreviewSheet: View {
-    let card: CardData
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        ZStack {
-            Color("HauzBg")
-                .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                HStack {
-                    Text("Preview")
-                        .font(.custom("Outfit-Black", size: 20))
-                        .foregroundColor(Color("HauzFocus"))
-                    
-                    Spacer()
-                    
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color("HauzFocus"))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                
-                CardView(card: card) { _ in }
-                    .allowsHitTesting(false)
-                
-                Spacer()
-            }
-            .padding(.top, 8)
-        }
     }
 }
 
