@@ -20,7 +20,7 @@ struct SwipeAction: View {
                         SwipeableItemView(
                             item: item,
                             isActive: activeSwipeID == item.id,
-                            activeSwipeID: $activeSwipeID, // Pass binding for control
+                            activeSwipeID: $activeSwipeID,
                             onSwipeChanged: { isOpen in
                                 if isOpen {
                                     activeSwipeID = item.id
@@ -68,16 +68,17 @@ struct SwipeableItemView: View {
     @State private var isDeleting: Bool = false
     @State private var buttonScale: CGFloat = 1.0
     @State private var buttonOpacity: Double = 1.0
-    @State private var buttonWidth: CGFloat = 55
+    @State private var buttonWidth: CGFloat = 100 // Scaled up for bigger items
     @State private var buttonBrightness: Double = 0
-    @State private var itemHeight: CGFloat = 80
+    @State private var itemHeight: CGFloat = 320 // NEW: Bigger height
     @State private var verticalPadding: CGFloat = 0
     
-    private let initialSwipeDistance: CGFloat = 110
-    private let autoDeleteThreshold: CGFloat = 220
-    private let swipeThreshold: CGFloat = 50
-    private let minButtonWidth: CGFloat = 15
-    private let buttonHeight: CGFloat = 50
+    private let itemWidth: CGFloat = 360 // NEW: Fixed width
+    private let initialSwipeDistance: CGFloat = 140 // Scaled for bigger items
+    private let autoDeleteThreshold: CGFloat = 280 // Scaled for bigger items
+    private let swipeThreshold: CGFloat = 70 // Scaled threshold
+    private let minButtonWidth: CGFloat = 25 // Bigger button
+    private let buttonHeight: CGFloat = 80 // Scaled button height
     
     var body: some View {
         GeometryReader { geometry in
@@ -85,15 +86,15 @@ struct SwipeableItemView: View {
                 // Background container
                 Color.clear
                 
-                // Delete button - icon only, fully visible, revolutionary!
+                // Delete button - scaled for bigger items
                 deleteButton
                     .frame(width: buttonWidth)
-                    .padding(.trailing, 15) // Perfect spacing!
+                    .padding(.trailing, 10)
                 
-                // Main content
+                // Main content with fixed width
                 itemContent
+                    .frame(width: itemWidth, height: itemHeight)
                     .offset(x: offset)
-                    .frame(height: itemHeight)
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
@@ -111,12 +112,12 @@ struct SwipeableItemView: View {
             }
             .frame(height: itemHeight)
         }
-        .frame(height: itemHeight)
+        .frame(width: itemWidth, height: itemHeight) // Fixed dimensions
         .padding(.vertical, verticalPadding)
         .clipped()
     }
     
-    // MARK: - Revolutionary Icon-Only Delete Button
+    // MARK: - Revolutionary Icon-Only Delete Button (Scaled)
     private var deleteButton: some View {
         Button(action: {
             performDelete()
@@ -126,7 +127,7 @@ struct SwipeableItemView: View {
                 Spacer()
                 
                 Image(systemName: "trash.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 32, weight: .semibold)) // Bigger icon
                     .foregroundColor(.white)
                 
                 Spacer()
@@ -151,12 +152,12 @@ struct SwipeableItemView: View {
     
     // MARK: - Item Content
     private var itemContent: some View {
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: 20) // Bigger corner radius for bigger items
             .fill(item.color.gradient)
             .overlay(
                 HStack {
                     Text(item.title)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 28, weight: .semibold)) // Bigger text
                         .foregroundColor(.white)
                     
                     Spacer()
@@ -164,12 +165,12 @@ struct SwipeableItemView: View {
                     // Visual indicator for swipe progress
                     if abs(offset) > swipeThreshold {
                         Image(systemName: abs(offset) > autoDeleteThreshold * 0.8 ? "arrow.left.circle.fill" : "arrow.left.circle")
-                            .font(.system(size: 20))
+                            .font(.system(size: 32)) // Bigger arrow
                             .foregroundColor(.white.opacity(0.7))
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 30) // More padding for bigger items
             )
     }
     
@@ -273,7 +274,6 @@ struct SwipeableItemView: View {
         }
     }
     
-    // MARK: - Delete Action with Smooth Disappearance
     // MARK: - Delete Action with Smooth Disappearance
     private func performDelete() {
         isDeleting = true
