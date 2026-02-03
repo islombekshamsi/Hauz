@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var isSelectMode = false // Multi-select mode
     @State private var selectedShoes: Set<UUID> = []
     @State private var showAddToCollectionSheet = false
+    @State private var activeSwipeID: UUID? = nil // Track which card is currently swiped open
     
     private let feedService = FeedService()
     
@@ -281,6 +282,8 @@ struct ProfileView: View {
                 // In normal mode, use swipe actions
                 SwipeableCardWrapper(
                     shoe: shoe,
+                    isActive: activeSwipeID == shoe.id,
+                    activeSwipeID: $activeSwipeID,
                     onTogglePin: {
                         togglePin(for: shoe)
                     },
@@ -865,6 +868,8 @@ struct FilterCircle: View {
 // MARK: - Swipeable Card Wrapper
 struct SwipeableCardWrapper: View {
     let shoe: LikedShoeData
+    let isActive: Bool
+    @Binding var activeSwipeID: UUID?
     let onTogglePin: () -> Void
     let onDelete: () -> Void
     
@@ -908,6 +913,11 @@ struct SwipeableCardWrapper: View {
                             handleDragEnded(gesture)
                         }
                 )
+                .onChange(of: isActive) { newValue in
+                    if !newValue && offset != 0 {
+                        closeSwipe()
+                    }
+                }
         }
         .frame(width: itemWidth, height: itemHeight)
         .padding(.vertical, verticalPadding)
@@ -950,6 +960,11 @@ struct SwipeableCardWrapper: View {
     // MARK: - Gesture Handlers
     private func handleDragChanged(_ gesture: DragGesture.Value) {
         let translation = gesture.translation.width
+        
+        // Close any other open item when starting to swipe this one
+        if translation < 0 && activeSwipeID != shoe.id && activeSwipeID != nil {
+            activeSwipeID = nil
+        }
         
         if translation < 0 {
             // Left swipe - reveal delete button
@@ -1019,6 +1034,9 @@ struct SwipeableCardWrapper: View {
                 buttonWidth = minButtonWidth + (initialSwipeDistance * 0.7)
                 buttonBrightness = (initialSwipeDistance / autoDeleteThreshold) * 0.15
                 
+                // Mark this card as active
+                activeSwipeID = shoe.id
+                
                 // Haptic feedback
                 let impact = UIImpactFeedbackGenerator(style: .light)
                 impact.impactOccurred()
@@ -1037,6 +1055,11 @@ struct SwipeableCardWrapper: View {
             buttonOpacity = 0
             buttonWidth = minButtonWidth
             buttonBrightness = 0
+        }
+        
+        // Clear active state if this was the active card
+        if activeSwipeID == shoe.id {
+            activeSwipeID = nil
         }
     }
     
@@ -1062,6 +1085,9 @@ struct SwipeableCardWrapper: View {
     // MARK: - Delete Action with Smooth Disappearance
     private func performDelete() {
         isDeleting = true
+        
+        // Clear active state
+        activeSwipeID = nil
         
         // Strong haptic feedback
         let impact = UIImpactFeedbackGenerator(style: .heavy)
