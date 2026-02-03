@@ -66,16 +66,15 @@ struct SwipeableItemView: View {
     @State private var isDeleting: Bool = false
     @State private var buttonScale: CGFloat = 1.0
     @State private var buttonOpacity: Double = 1.0
-    @State private var buttonWidth: CGFloat = 60
+    @State private var buttonWidth: CGFloat = 55
     @State private var buttonBrightness: Double = 0
     @State private var itemHeight: CGFloat = 80
     @State private var verticalPadding: CGFloat = 0
     
-    private let initialSwipeDistance: CGFloat = 100
+    private let initialSwipeDistance: CGFloat = 110 // Increased to create more space!
     private let autoDeleteThreshold: CGFloat = 220
     private let swipeThreshold: CGFloat = 50
-    private let buttonSpacing: CGFloat = 20 // Increased spacing for breathing room!
-    private let minButtonWidth: CGFloat = 60
+    private let minButtonWidth: CGFloat = 18 // Slightly smaller initial size
     private let buttonHeight: CGFloat = 50
     
     var body: some View {
@@ -87,7 +86,7 @@ struct SwipeableItemView: View {
                 // Delete button - icon only, fully visible, revolutionary!
                 deleteButton
                     .frame(width: buttonWidth)
-                    .offset(x: -buttonSpacing) // Offset to create space from the edge
+                    .padding(.trailing, 8) // Clean spacing from edge
                 
                 // Main content
                 itemContent
@@ -237,7 +236,7 @@ struct SwipeableItemView: View {
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             if abs(offset) > swipeThreshold || velocity < -300 {
-                // Snap to open position
+                // Snap to open position with more space
                 offset = -initialSwipeDistance
                 buttonScale = 1.0
                 buttonOpacity = 1.0
