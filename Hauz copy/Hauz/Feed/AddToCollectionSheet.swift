@@ -271,12 +271,12 @@ struct CollectionCheckRow: View {
                 // Collection info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(collection.name)
-                        .font(.custom("bernoru-blackultraexpanded", size: 16))
+                        .font(.custom("Outfit-SemiBold", size: 18))
                         .foregroundColor(Color("HauzBg"))
                         .lineLimit(1)
                     
                     Text("\(collection.itemCount) \(collection.itemCount == 1 ? "item" : "items")")
-                        .font(.system(size: 13))
+                        .font(.custom("Outfit-SemiBold", size: 14))
                         .foregroundColor(.secondary)
                 }
                 
