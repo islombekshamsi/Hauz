@@ -886,8 +886,8 @@ struct SwipeableCardWrapper: View {
     private let initialSwipeDistance: CGFloat = 140
     private let autoDeleteThreshold: CGFloat = 280
     private let swipeThreshold: CGFloat = 70
-    private let minButtonWidth: CGFloat = 25
-    private let buttonHeight: CGFloat = 80
+    private let minButtonWidth: CGFloat = 20 // width of delete button
+    private let buttonHeight: CGFloat = 60 // height of the delete button
     private let screenWidth: CGFloat = UIScreen.main.bounds.width
     
     var body: some View {
@@ -898,7 +898,7 @@ struct SwipeableCardWrapper: View {
             // Delete button - scaled for bigger items
             deleteButton
                 .frame(width: buttonWidth)
-                .padding(.trailing, 10)
+                .padding(.trailing, 5) // for space between the button and the object
             
             // Main content with fixed width
             FlippableShoeCard(card: shoe, onTogglePin: onTogglePin)
@@ -934,7 +934,7 @@ struct SwipeableCardWrapper: View {
                 Spacer()
                 
                 Image(systemName: "trash.fill")
-                    .font(.system(size: 32, weight: .semibold))
+                    .font(.system(size: 25, weight: .semibold))
                     .foregroundColor(.white)
                 
                 Spacer()
@@ -944,7 +944,7 @@ struct SwipeableCardWrapper: View {
                 Capsule()
                     .fill(
                         LinearGradient(
-                            colors: [Color.red, Color.red.opacity(0.85)],
+                            colors: [Color("HauzFocus"), Color("HauzFocus").opacity(0.85)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
