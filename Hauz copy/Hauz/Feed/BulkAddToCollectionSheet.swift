@@ -22,17 +22,17 @@ struct BulkAddToCollectionSheet: View {
                 VStack(spacing: 0) {
                     // Header info
                     VStack(spacing: 8) {
-                        Image(systemName: "shoeprints.fill")
+                       /* Image(systemName: "shoeprints.fill")
                             .font(.system(size: 40))
-                            .foregroundColor(Color("HauzFocus"))
+                            .foregroundColor(Color("HauzFocus"))*/
                         
                         Text("Add \(sneakerCount) \(sneakerCount == 1 ? "Sneaker" : "Sneakers")")
-                            .font(.custom("bernoru-blackultraexpanded", size: 22))
+                            .font(.custom("Outfit-SemiBold", size: 28))
                             .foregroundColor(Color("HauzFocus"))
                         
                         Text("Select collections")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
+                            .font(.custom("Outfit-SemiBold", size: 20))
+                            .foregroundColor(Color("HauzLight").opacity(0.7))
                     }
                     .padding(.vertical, 20)
                     
@@ -69,11 +69,11 @@ struct BulkAddToCollectionSheet: View {
                                     .frame(height: 50)
                             } else {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                    Text("Add to \(selectedCollections.count) \(selectedCollections.count == 1 ? "Collection" : "Collections")")
+                                   // Image(systemName: "checkmark.circle.fill")
+                                    Text("Add")
                                 }
-                                .font(.custom("bernoru-blackultraexpanded", size: 16))
-                                .foregroundColor(.white)
+                                .font(.custom("Outfit-SemiBold", size: 20))
+                                .foregroundColor(Color("HauzLight"))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 50)
                             }
@@ -94,6 +94,7 @@ struct BulkAddToCollectionSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .font(.custom("Outfit-SemiBold", size: 14))
                     .foregroundColor(Color("HauzFocus"))
                 }
                 
