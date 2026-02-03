@@ -264,27 +264,37 @@ struct ProfileView: View {
     // MARK: - Selectable Card View
     private func selectableCardView(shoe: LikedShoeData, isPinned: Bool) -> some View {
         ZStack(alignment: .topLeading) {
-            FlippableShoeCard(card: shoe, onTogglePin: {
-                togglePin(for: shoe)
-            })
-            .opacity(isSelectMode ? 0.95 : 1.0)
-            .swipeActions {
-                Action(symbolImage: "trash.fill", tint: .white, background: .red) { resetPosition in
-                    resetPosition.toggle()
-                    Task {
-                        await removeShoe(shoe)
-                    }
-                }
-            }
-            .onTapGesture {
-                if isSelectMode {
+            if isSelectMode {
+                // In select mode, no swipe actions
+                FlippableShoeCard(card: shoe, onTogglePin: {
+                    togglePin(for: shoe)
+                })
+                .opacity(0.95)
+                .onTapGesture {
                     toggleSelection(shoe.id)
                 }
+                .transition(.asymmetric(
+                    insertion: .scale.combined(with: .opacity),
+                    removal: .scale(scale: 0.8).combined(with: .opacity)
+                ))
+            } else {
+                // In normal mode, use swipe actions
+                SwipeableCardWrapper(
+                    shoe: shoe,
+                    onTogglePin: {
+                        togglePin(for: shoe)
+                    },
+                    onDelete: {
+                        Task {
+                            await removeShoe(shoe)
+                        }
+                    }
+                )
+                .transition(.asymmetric(
+                    insertion: .scale.combined(with: .opacity),
+                    removal: .scale(scale: 0.8).combined(with: .opacity)
+                ))
             }
-            .transition(.asymmetric(
-                insertion: .scale.combined(with: .opacity),
-                removal: .scale(scale: 0.8).combined(with: .opacity)
-            ))
             
             // Selection checkmark (top-left)
             if isSelectMode {
@@ -848,6 +858,226 @@ struct FilterCircle: View {
             .frame(width: 55, height: 55)
             .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
             .scaleEffect(isSelected ? 1.05 : 1.0)
+        }
+    }
+}
+
+// MARK: - Swipeable Card Wrapper
+struct SwipeableCardWrapper: View {
+    let shoe: LikedShoeData
+    let onTogglePin: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var offset: CGFloat = 0
+    @State private var isDeleting: Bool = false
+    @State private var buttonScale: CGFloat = 1.0
+    @State private var buttonOpacity: Double = 0
+    @State private var buttonWidth: CGFloat = 100
+    @State private var buttonBrightness: Double = 0
+    @State private var itemHeight: CGFloat = 320
+    @State private var verticalPadding: CGFloat = 0
+    
+    private let itemWidth: CGFloat = 360
+    private let initialSwipeDistance: CGFloat = 140
+    private let autoDeleteThreshold: CGFloat = 280
+    private let swipeThreshold: CGFloat = 70
+    private let minButtonWidth: CGFloat = 25
+    private let buttonHeight: CGFloat = 80
+    private let screenWidth: CGFloat = UIScreen.main.bounds.width
+    
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // Background container
+            Color.clear
+            
+            // Delete button - scaled for bigger items
+            deleteButton
+                .frame(width: buttonWidth)
+                .padding(.trailing, 10)
+            
+            // Main content with fixed width
+            FlippableShoeCard(card: shoe, onTogglePin: onTogglePin)
+                .frame(width: itemWidth, height: itemHeight)
+                .offset(x: offset)
+                .gesture(
+                    DragGesture(minimumDistance: 20)
+                        .onChanged { gesture in
+                            handleDragChanged(gesture)
+                        }
+                        .onEnded { gesture in
+                            handleDragEnded(gesture)
+                        }
+                )
+        }
+        .frame(width: itemWidth, height: itemHeight)
+        .padding(.vertical, verticalPadding)
+        .clipped()
+    }
+    
+    // MARK: - Delete Button
+    private var deleteButton: some View {
+        Button(action: {
+            performDeleteWithAutoSwipe()
+        }) {
+            // Centered icon with perfect alignment
+            HStack {
+                Spacer()
+                
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+            }
+            .frame(height: buttonHeight)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.red, Color.red.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .brightness(buttonBrightness)
+            )
+            .scaleEffect(buttonScale)
+            .opacity(buttonOpacity)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    // MARK: - Gesture Handlers
+    private func handleDragChanged(_ gesture: DragGesture.Value) {
+        let translation = gesture.translation.width
+        
+        if translation < 0 {
+            // Left swipe - reveal delete button
+            let rawOffset = translation
+            offset = max(rawOffset, -autoDeleteThreshold - 50)
+            
+            // Calculate horizontal expansion
+            let swipeDistance = abs(offset)
+            let maxWidth = screenWidth
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.7)
+            
+            // Calculate brightness increase
+            let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
+            
+            // Smooth animations - fully visible icon that expands
+            withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
+                buttonScale = 1.0
+                buttonOpacity = 1.0
+                
+                // Horizontal expansion - icon stays centered
+                buttonWidth = min(expandedWidth, maxWidth)
+                
+                // Progressive brightness glow
+                buttonBrightness = brightnessProgress * 0.15
+            }
+            
+            // Haptic feedback at auto-delete threshold
+            if abs(offset) >= autoDeleteThreshold {
+                let impact = UIImpactFeedbackGenerator(style: .medium)
+                impact.impactOccurred()
+            }
+            
+        } else if offset < 0 {
+            // Right swipe when already open
+            let newOffset = offset + translation
+            offset = min(newOffset, 0)
+            
+            let swipeDistance = abs(offset)
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.7)
+            let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
+            
+            withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
+                buttonScale = 1.0
+                buttonOpacity = 1.0
+                buttonWidth = min(expandedWidth, screenWidth)
+                buttonBrightness = brightnessProgress * 0.15
+            }
+        }
+    }
+    
+    private func handleDragEnded(_ gesture: DragGesture.Value) {
+        let translation = gesture.translation.width
+        let velocity = gesture.predictedEndTranslation.width - translation
+        
+        // Auto-delete if swiped beyond threshold
+        if abs(offset) >= autoDeleteThreshold {
+            performDelete()
+            return
+        }
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            if abs(offset) > swipeThreshold || velocity < -300 {
+                // Snap to open position with more space
+                offset = -initialSwipeDistance
+                buttonScale = 1.0
+                buttonOpacity = 1.0
+                buttonWidth = minButtonWidth + (initialSwipeDistance * 0.7)
+                buttonBrightness = (initialSwipeDistance / autoDeleteThreshold) * 0.15
+                
+                // Haptic feedback
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
+            } else {
+                // Snap back to closed
+                closeSwipe()
+            }
+        }
+    }
+    
+    // MARK: - Close Swipe
+    private func closeSwipe() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            offset = 0
+            buttonScale = 1.0
+            buttonOpacity = 0
+            buttonWidth = minButtonWidth
+            buttonBrightness = 0
+        }
+    }
+    
+    // MARK: - Auto-Swipe Delete Animation
+    private func performDeleteWithAutoSwipe() {
+        // Haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        
+        // Animate to full swipe position first
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            offset = -autoDeleteThreshold
+            buttonWidth = minButtonWidth + (autoDeleteThreshold * 0.7)
+            buttonBrightness = 0.15
+        }
+        
+        // Then perform the delete after a brief moment
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            performDelete()
+        }
+    }
+    
+    // MARK: - Delete Action with Smooth Disappearance
+    private func performDelete() {
+        isDeleting = true
+        
+        // Strong haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .heavy)
+        impact.impactOccurred()
+        
+        // Smooth disappearance animation
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.95)) {
+            itemHeight = 0
+            verticalPadding = -6
+            offset = -400
+            buttonOpacity = 0
+        }
+        
+        // Delay to allow animation to complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            onDelete()
         }
     }
 }
