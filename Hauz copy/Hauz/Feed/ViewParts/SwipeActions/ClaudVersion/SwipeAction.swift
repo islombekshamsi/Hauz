@@ -20,6 +20,7 @@ struct SwipeAction: View {
                         SwipeableItemView(
                             item: item,
                             isActive: activeSwipeID == item.id,
+                            activeSwipeID: $activeSwipeID, // Pass binding for control
                             onSwipeChanged: { isOpen in
                                 if isOpen {
                                     activeSwipeID = item.id
@@ -59,6 +60,7 @@ struct SwipeItem: Identifiable {
 struct SwipeableItemView: View {
     let item: SwipeItem
     let isActive: Bool
+    @Binding var activeSwipeID: Int?
     let onSwipeChanged: (Bool) -> Void
     let onDelete: () -> Void
     
@@ -71,10 +73,10 @@ struct SwipeableItemView: View {
     @State private var itemHeight: CGFloat = 80
     @State private var verticalPadding: CGFloat = 0
     
-    private let initialSwipeDistance: CGFloat = 110 // Increased to create more space!
+    private let initialSwipeDistance: CGFloat = 110
     private let autoDeleteThreshold: CGFloat = 220
     private let swipeThreshold: CGFloat = 50
-    private let minButtonWidth: CGFloat = 18 // Slightly smaller initial size
+    private let minButtonWidth: CGFloat = 15
     private let buttonHeight: CGFloat = 50
     
     var body: some View {
@@ -86,7 +88,7 @@ struct SwipeableItemView: View {
                 // Delete button - icon only, fully visible, revolutionary!
                 deleteButton
                     .frame(width: buttonWidth)
-                    .padding(.trailing, 8) // Clean spacing from edge
+                    .padding(.trailing, 15) // Perfect spacing!
                 
                 // Main content
                 itemContent
@@ -174,6 +176,11 @@ struct SwipeableItemView: View {
     // MARK: - Gesture Handlers
     private func handleDragChanged(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
         let translation = gesture.translation.width
+        
+        // Close any other open item when starting to swipe this one
+        if translation < 0 && activeSwipeID != item.id && activeSwipeID != nil {
+            activeSwipeID = nil
+        }
         
         if translation < 0 {
             // Left swipe - reveal delete button
@@ -266,6 +273,7 @@ struct SwipeableItemView: View {
         }
     }
     
+    // MARK: - Delete Action with Smooth Disappearance
     // MARK: - Delete Action with Smooth Disappearance
     private func performDelete() {
         isDeleting = true
