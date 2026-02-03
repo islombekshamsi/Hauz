@@ -74,8 +74,8 @@ struct SwipeableItemView: View {
     private let initialSwipeDistance: CGFloat = 100
     private let autoDeleteThreshold: CGFloat = 220
     private let swipeThreshold: CGFloat = 50
-    private let buttonSpacing: CGFloat = 12
-    private let minButtonWidth: CGFloat = 60 // Perfect for icon-only
+    private let buttonSpacing: CGFloat = 20 // Increased spacing for breathing room!
+    private let minButtonWidth: CGFloat = 60
     private let buttonHeight: CGFloat = 50
     
     var body: some View {
@@ -87,6 +87,7 @@ struct SwipeableItemView: View {
                 // Delete button - icon only, fully visible, revolutionary!
                 deleteButton
                     .frame(width: buttonWidth)
+                    .offset(x: -buttonSpacing) // Offset to create space from the edge
                 
                 // Main content
                 itemContent
@@ -145,7 +146,6 @@ struct SwipeableItemView: View {
             .opacity(buttonOpacity)
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.trailing, buttonSpacing)
     }
     
     // MARK: - Item Content
@@ -184,7 +184,7 @@ struct SwipeableItemView: View {
             // Calculate revolutionary horizontal expansion
             let swipeDistance = abs(offset)
             let maxWidth = screenWidth
-            let expandedWidth = minButtonWidth + (swipeDistance * 0.7) // More aggressive expansion!
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.7)
             
             // Calculate brightness increase
             let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
