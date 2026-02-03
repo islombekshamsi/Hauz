@@ -229,10 +229,6 @@ struct CollectionDetailView: View {
                 .onTapGesture {
                     toggleSelection(sneaker.id)
                 }
-                .transition(.asymmetric(
-                    insertion: .scale.combined(with: .opacity),
-                    removal: .scale(scale: 0.8).combined(with: .opacity)
-                ))
             } else {
                 // In normal mode, use swipe actions
                 SwipeableCollectionCard(
@@ -243,10 +239,6 @@ struct CollectionDetailView: View {
                         removeSneaker(sneaker)
                     }
                 )
-                .transition(.asymmetric(
-                    insertion: .scale.combined(with: .opacity),
-                    removal: .scale(scale: 0.8).combined(with: .opacity)
-                ))
             }
             
             // Selection checkmark (top-left)
@@ -267,6 +259,10 @@ struct CollectionDetailView: View {
                 .transition(.scale.combined(with: .opacity))
             }
         }
+        .transition(.asymmetric(
+            insertion: .scale.combined(with: .opacity),
+            removal: .scale(scale: 0.8).combined(with: .opacity)
+        ))
     }
     
     // MARK: - Action Button (Floating)
