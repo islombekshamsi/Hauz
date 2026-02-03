@@ -64,8 +64,8 @@ struct SwipeableItemView: View {
     
     @State private var offset: CGFloat = 0
     @State private var isDeleting: Bool = false
-    @State private var buttonScale: CGFloat = 0.5
-    @State private var buttonOpacity: Double = 0
+    @State private var buttonScale: CGFloat = 1.0
+    @State private var buttonOpacity: Double = 1.0
     @State private var buttonWidth: CGFloat = 100
     @State private var buttonBrightness: Double = 0
     @State private var itemHeight: CGFloat = 80
@@ -76,7 +76,7 @@ struct SwipeableItemView: View {
     private let swipeThreshold: CGFloat = 50
     private let buttonSpacing: CGFloat = 12
     private let minButtonWidth: CGFloat = 100
-    private let buttonHeight: CGFloat = 50 // Compact height like before
+    private let buttonHeight: CGFloat = 50
     
     var body: some View {
         GeometryReader { geometry in
@@ -84,10 +84,9 @@ struct SwipeableItemView: View {
                 // Background container
                 Color.clear
                 
-                // Delete button with horizontal expansion
+                // Delete button - always fully visible when swiping
                 deleteButton
                     .frame(width: buttonWidth)
-                    .offset(x: calculateButtonOffset(screenWidth: geometry.size.width))
                 
                 // Main content
                 itemContent
@@ -115,7 +114,7 @@ struct SwipeableItemView: View {
         .clipped()
     }
     
-    // MARK: - Delete Button with Revolutionary Horizontal Expansion
+    // MARK: - Delete Button - Fully Visible Revolutionary Design
     private var deleteButton: some View {
         Button(action: {
             performDelete()
@@ -144,7 +143,7 @@ struct SwipeableItemView: View {
                     )
                     .brightness(buttonBrightness)
             )
-            .scaleEffect(x: 1.0, y: buttonScale)
+            .scaleEffect(buttonScale)
             .opacity(buttonOpacity)
         }
         .buttonStyle(PlainButtonStyle())
@@ -175,44 +174,34 @@ struct SwipeableItemView: View {
             )
     }
     
-    // MARK: - Button Offset Calculation
-    private func calculateButtonOffset(screenWidth: CGFloat) -> CGFloat {
-        let progress = min(abs(offset) / initialSwipeDistance, 1.0)
-        let maxOffset = 150.0
-        return maxOffset - (progress * maxOffset)
-    }
-    
     // MARK: - Gesture Handlers
     private func handleDragChanged(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
         let translation = gesture.translation.width
         
         if translation < 0 {
-            // Left swipe - show delete button
+            // Left swipe - reveal delete button
             let rawOffset = translation
             offset = max(rawOffset, -autoDeleteThreshold - 50)
-            
-            // Calculate animation progress
-            let progress = min(abs(offset) / initialSwipeDistance, 1.0)
             
             // Calculate horizontal expansion to "catch" the object
             let swipeDistance = abs(offset)
             let maxWidth = screenWidth
-            let expandedWidth = minButtonWidth + (swipeDistance * 0.6) // Smooth expansion
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.6)
             
             // Calculate brightness increase as you swipe more
             let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
             
-            // Smooth animations
+            // Smooth animations - button is ALWAYS fully visible
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
-                // Initial appearance (vertical scale)
-                buttonScale = 0.5 + (progress * 0.5)
-                buttonOpacity = progress
+                // Button stays fully visible and scaled
+                buttonScale = 1.0
+                buttonOpacity = 1.0
                 
                 // Horizontal expansion to catch the object
                 buttonWidth = min(expandedWidth, maxWidth)
                 
                 // Add brightness as you swipe - revolutionary glow effect!
-                buttonBrightness = brightnessProgress * 0.15 // 0 to 0.15 brightness
+                buttonBrightness = brightnessProgress * 0.15
             }
             
             // Haptic feedback at auto-delete threshold
@@ -226,14 +215,13 @@ struct SwipeableItemView: View {
             let newOffset = offset + translation
             offset = min(newOffset, 0)
             
-            let progress = min(abs(offset) / initialSwipeDistance, 1.0)
             let swipeDistance = abs(offset)
             let expandedWidth = minButtonWidth + (swipeDistance * 0.6)
             let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
             
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
-                buttonScale = 0.5 + (progress * 0.5)
-                buttonOpacity = progress
+                buttonScale = 1.0
+                buttonOpacity = 1.0
                 buttonWidth = min(expandedWidth, screenWidth)
                 buttonBrightness = brightnessProgress * 0.15
             }
@@ -274,8 +262,8 @@ struct SwipeableItemView: View {
     private func closeSwipe() {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             offset = 0
-            buttonScale = 0.5
-            buttonOpacity = 0
+            buttonScale = 1.0
+            buttonOpacity = 0 // Only opacity fades out
             buttonWidth = minButtonWidth
             buttonBrightness = 0
             onSwipeChanged(false)
