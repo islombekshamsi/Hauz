@@ -31,12 +31,6 @@ struct SwipeAction: View {
                                 deleteItem(item)
                             }
                         )
-                        .onChange(of: activeSwipeID) { newValue in
-                            // Close this item if another one becomes active
-                            if let newValue = newValue, newValue != item.id {
-                                // Trigger will be handled by isActive binding
-                            }
-                        }
                     }
                 }
                 .padding()
@@ -46,7 +40,7 @@ struct SwipeAction: View {
     }
     
     private func deleteItem(_ item: SwipeItem) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             items.removeAll { $0.id == item.id }
         }
         activeSwipeID = nil
@@ -69,14 +63,22 @@ struct SwipeableItemView: View {
     
     @State private var offset: CGFloat = 0
     @State private var isDeleting: Bool = false
+    @State private var buttonScale: CGFloat = 0.5
+    @State private var buttonOpacity: Double = 0
     
-    private let deleteButtonWidth: CGFloat = 90
-    private let swipeThreshold: CGFloat = 45
+    private let maxSwipeDistance: CGFloat = 100
+    private let swipeThreshold: CGFloat = 50
     
     var body: some View {
         ZStack(alignment: .trailing) {
-            // Delete button (always behind)
+            // Background container
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.clear)
+                .frame(height: 80)
+            
+            // Delete button with dynamic expansion
             deleteButton
+                .offset(x: calculateButtonOffset())
             
             // Main content
             itemContent
@@ -92,39 +94,46 @@ struct SwipeableItemView: View {
                 )
                 .onChange(of: isActive) { newValue in
                     if !newValue && offset != 0 {
-                        // Close this item when another becomes active
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                            offset = 0
-                        }
+                        closeSwipe()
                     }
                 }
         }
         .frame(height: 80)
         .opacity(isDeleting ? 0 : 1)
-        .scaleEffect(isDeleting ? 0.8 : 1)
+        .scaleEffect(isDeleting ? 0.85 : 1)
     }
     
-    // MARK: - Delete Button (iMessage style)
+    // MARK: - Delete Button with Capsule Shape
     private var deleteButton: some View {
-        HStack(spacing: 0) {
-            Spacer()
-            
-            Button(action: {
-                performDelete()
-            }) {
-                ZStack {
-                    Rectangle()
-                        .fill(Color.red)
-                    
-                    Text("Delete")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: deleteButtonWidth)
+        Button(action: {
+            performDelete()
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                
+                Text("Delete")
+                    .font(.system(size: 16, weight: .semibold))
             }
-            .buttonStyle(PlainButtonStyle())
+            .foregroundColor(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.red, Color.red.opacity(0.9)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: .red.opacity(0.4), radius: 8, x: 0, y: 4)
+            )
+            .scaleEffect(buttonScale)
+            .opacity(buttonOpacity)
         }
-        .frame(height: 80)
+        .buttonStyle(PlainButtonStyle())
+        .padding(.trailing, 8)
     }
     
     // MARK: - Item Content
@@ -141,29 +150,47 @@ struct SwipeableItemView: View {
                 }
                 .padding(.horizontal, 20)
             )
-            .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+    }
+    
+    // MARK: - Button Offset Calculation
+    private func calculateButtonOffset() -> CGFloat {
+        // Button starts off-screen and slides in smoothly
+        let progress = min(abs(offset) / maxSwipeDistance, 1.0)
+        return 20 - (progress * 20)
     }
     
     // MARK: - Gesture Handlers
     private func handleDragChanged(_ gesture: DragGesture.Value) {
         let translation = gesture.translation.width
         
-        // Only allow left swipe (negative translation)
         if translation < 0 {
-            // Apply resistance when swiping beyond the delete button
-            let resistance: CGFloat = 3.0
+            // Left swipe - show delete button
             let rawOffset = translation
+            let clampedOffset = max(rawOffset, -maxSwipeDistance)
             
-            if rawOffset < -deleteButtonWidth {
-                let excess = rawOffset + deleteButtonWidth
-                offset = -deleteButtonWidth + (excess / resistance)
-            } else {
-                offset = rawOffset
+            offset = clampedOffset
+            
+            // Calculate animation progress
+            let progress = min(abs(clampedOffset) / maxSwipeDistance, 1.0)
+            
+            // Smooth scale and opacity animation
+            withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
+                buttonScale = 0.5 + (progress * 0.5)
+                buttonOpacity = progress
             }
+            
         } else if offset < 0 {
-            // Allow right swipe to close when already open
+            // Right swipe when already open - close the button
             let newOffset = offset + translation
             offset = min(newOffset, 0)
+            
+            let progress = min(abs(offset) / maxSwipeDistance, 1.0)
+            
+            withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
+                buttonScale = 0.5 + (progress * 0.5)
+                buttonOpacity = progress
+            }
         }
     }
     
@@ -171,16 +198,31 @@ struct SwipeableItemView: View {
         let translation = gesture.translation.width
         let velocity = gesture.predictedEndTranslation.width - translation
         
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-            if offset < -swipeThreshold || velocity < -200 {
-                // Snap to show delete button
-                offset = -deleteButtonWidth
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            if abs(offset) > swipeThreshold || velocity < -300 {
+                // Snap to open position
+                offset = -maxSwipeDistance
+                buttonScale = 1.0
+                buttonOpacity = 1.0
                 onSwipeChanged(true)
+                
+                // Haptic feedback
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
             } else {
-                // Snap back to closed position
-                offset = 0
-                onSwipeChanged(false)
+                // Snap back to closed
+                closeSwipe()
             }
+        }
+    }
+    
+    // MARK: - Close Swipe
+    private func closeSwipe() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            offset = 0
+            buttonScale = 0.5
+            buttonOpacity = 0
+            onSwipeChanged(false)
         }
     }
     
@@ -188,12 +230,16 @@ struct SwipeableItemView: View {
     private func performDelete() {
         isDeleting = true
         
-        // Haptic feedback
+        // Strong haptic feedback
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
         
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            offset = -300 // Slide off screen
+        }
+        
         // Delay to allow animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             onDelete()
         }
     }
