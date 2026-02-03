@@ -66,7 +66,7 @@ struct SwipeableItemView: View {
     @State private var isDeleting: Bool = false
     @State private var buttonScale: CGFloat = 1.0
     @State private var buttonOpacity: Double = 1.0
-    @State private var buttonWidth: CGFloat = 100
+    @State private var buttonWidth: CGFloat = 60
     @State private var buttonBrightness: Double = 0
     @State private var itemHeight: CGFloat = 80
     @State private var verticalPadding: CGFloat = 0
@@ -75,7 +75,7 @@ struct SwipeableItemView: View {
     private let autoDeleteThreshold: CGFloat = 220
     private let swipeThreshold: CGFloat = 50
     private let buttonSpacing: CGFloat = 12
-    private let minButtonWidth: CGFloat = 100
+    private let minButtonWidth: CGFloat = 60 // Perfect for icon-only
     private let buttonHeight: CGFloat = 50
     
     var body: some View {
@@ -84,7 +84,7 @@ struct SwipeableItemView: View {
                 // Background container
                 Color.clear
                 
-                // Delete button - always fully visible when swiping
+                // Delete button - icon only, fully visible, revolutionary!
                 deleteButton
                     .frame(width: buttonWidth)
                 
@@ -114,23 +114,21 @@ struct SwipeableItemView: View {
         .clipped()
     }
     
-    // MARK: - Delete Button - Fully Visible Revolutionary Design
+    // MARK: - Revolutionary Icon-Only Delete Button
     private var deleteButton: some View {
         Button(action: {
             performDelete()
         }) {
-            HStack(spacing: 10) {
+            // Centered icon with perfect alignment
+            HStack {
                 Spacer()
                 
                 Image(systemName: "trash.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                
-                Text("Delete")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
                 
                 Spacer()
             }
-            .foregroundColor(.white)
             .frame(height: buttonHeight)
             .background(
                 Capsule()
@@ -183,24 +181,23 @@ struct SwipeableItemView: View {
             let rawOffset = translation
             offset = max(rawOffset, -autoDeleteThreshold - 50)
             
-            // Calculate horizontal expansion to "catch" the object
+            // Calculate revolutionary horizontal expansion
             let swipeDistance = abs(offset)
             let maxWidth = screenWidth
-            let expandedWidth = minButtonWidth + (swipeDistance * 0.6)
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.7) // More aggressive expansion!
             
-            // Calculate brightness increase as you swipe more
+            // Calculate brightness increase
             let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
             
-            // Smooth animations - button is ALWAYS fully visible
+            // Smooth animations - fully visible icon that expands
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
-                // Button stays fully visible and scaled
                 buttonScale = 1.0
                 buttonOpacity = 1.0
                 
-                // Horizontal expansion to catch the object
+                // Revolutionary horizontal expansion - icon stays centered!
                 buttonWidth = min(expandedWidth, maxWidth)
                 
-                // Add brightness as you swipe - revolutionary glow effect!
+                // Progressive brightness glow
                 buttonBrightness = brightnessProgress * 0.15
             }
             
@@ -216,7 +213,7 @@ struct SwipeableItemView: View {
             offset = min(newOffset, 0)
             
             let swipeDistance = abs(offset)
-            let expandedWidth = minButtonWidth + (swipeDistance * 0.6)
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.7)
             let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
             
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
@@ -244,7 +241,7 @@ struct SwipeableItemView: View {
                 offset = -initialSwipeDistance
                 buttonScale = 1.0
                 buttonOpacity = 1.0
-                buttonWidth = minButtonWidth + (initialSwipeDistance * 0.6)
+                buttonWidth = minButtonWidth + (initialSwipeDistance * 0.7)
                 buttonBrightness = (initialSwipeDistance / autoDeleteThreshold) * 0.15
                 onSwipeChanged(true)
                 
@@ -263,7 +260,7 @@ struct SwipeableItemView: View {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             offset = 0
             buttonScale = 1.0
-            buttonOpacity = 0 // Only opacity fades out
+            buttonOpacity = 0
             buttonWidth = minButtonWidth
             buttonBrightness = 0
             onSwipeChanged(false)
