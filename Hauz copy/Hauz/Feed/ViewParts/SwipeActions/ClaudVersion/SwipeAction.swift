@@ -68,17 +68,17 @@ struct SwipeableItemView: View {
     @State private var isDeleting: Bool = false
     @State private var buttonScale: CGFloat = 1.0
     @State private var buttonOpacity: Double = 1.0
-    @State private var buttonWidth: CGFloat = 100 // Scaled up for bigger items
+    @State private var buttonWidth: CGFloat = 100
     @State private var buttonBrightness: Double = 0
-    @State private var itemHeight: CGFloat = 320 // NEW: Bigger height
+    @State private var itemHeight: CGFloat = 320
     @State private var verticalPadding: CGFloat = 0
     
-    private let itemWidth: CGFloat = 360 // NEW: Fixed width
-    private let initialSwipeDistance: CGFloat = 140 // Scaled for bigger items
-    private let autoDeleteThreshold: CGFloat = 280 // Scaled for bigger items
-    private let swipeThreshold: CGFloat = 70 // Scaled threshold
-    private let minButtonWidth: CGFloat = 25 // Bigger button
-    private let buttonHeight: CGFloat = 80 // Scaled button height
+    private let itemWidth: CGFloat = 360
+    private let initialSwipeDistance: CGFloat = 140
+    private let autoDeleteThreshold: CGFloat = 280
+    private let swipeThreshold: CGFloat = 70
+    private let minButtonWidth: CGFloat = 25
+    private let buttonHeight: CGFloat = 80
     
     var body: some View {
         GeometryReader { geometry in
@@ -112,22 +112,22 @@ struct SwipeableItemView: View {
             }
             .frame(height: itemHeight)
         }
-        .frame(width: itemWidth, height: itemHeight) // Fixed dimensions
+        .frame(width: itemWidth, height: itemHeight)
         .padding(.vertical, verticalPadding)
         .clipped()
     }
     
-    // MARK: - Revolutionary Icon-Only Delete Button (Scaled)
+    // MARK: - Revolutionary Icon-Only Delete Button with Auto-Swipe
     private var deleteButton: some View {
         Button(action: {
-            performDelete()
+            performDeleteWithAutoSwipe()
         }) {
             // Centered icon with perfect alignment
             HStack {
                 Spacer()
                 
                 Image(systemName: "trash.fill")
-                    .font(.system(size: 32, weight: .semibold)) // Bigger icon
+                    .font(.system(size: 32, weight: .semibold))
                     .foregroundColor(.white)
                 
                 Spacer()
@@ -152,12 +152,12 @@ struct SwipeableItemView: View {
     
     // MARK: - Item Content
     private var itemContent: some View {
-        RoundedRectangle(cornerRadius: 20) // Bigger corner radius for bigger items
+        RoundedRectangle(cornerRadius: 20)
             .fill(item.color.gradient)
             .overlay(
                 HStack {
                     Text(item.title)
-                        .font(.system(size: 28, weight: .semibold)) // Bigger text
+                        .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(.white)
                     
                     Spacer()
@@ -165,12 +165,12 @@ struct SwipeableItemView: View {
                     // Visual indicator for swipe progress
                     if abs(offset) > swipeThreshold {
                         Image(systemName: abs(offset) > autoDeleteThreshold * 0.8 ? "arrow.left.circle.fill" : "arrow.left.circle")
-                            .font(.system(size: 32)) // Bigger arrow
+                            .font(.system(size: 32))
                             .foregroundColor(.white.opacity(0.7))
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
-                .padding(.horizontal, 30) // More padding for bigger items
+                .padding(.horizontal, 30)
             )
     }
     
@@ -271,6 +271,25 @@ struct SwipeableItemView: View {
             buttonWidth = minButtonWidth
             buttonBrightness = 0
             onSwipeChanged(false)
+        }
+    }
+    
+    // MARK: - Revolutionary Auto-Swipe Delete Animation
+    private func performDeleteWithAutoSwipe() {
+        // Haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        
+        // Animate to full swipe position first
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            offset = -autoDeleteThreshold
+            buttonWidth = minButtonWidth + (autoDeleteThreshold * 0.7)
+            buttonBrightness = 0.15
+        }
+        
+        // Then perform the delete after a brief moment
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            performDelete()
         }
     }
     
