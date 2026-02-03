@@ -66,74 +66,85 @@ struct SwipeableItemView: View {
     @State private var isDeleting: Bool = false
     @State private var buttonScale: CGFloat = 0.5
     @State private var buttonOpacity: Double = 0
+    @State private var buttonWidth: CGFloat = 100
+    @State private var buttonBrightness: Double = 0
     @State private var itemHeight: CGFloat = 80
     @State private var verticalPadding: CGFloat = 0
     
     private let initialSwipeDistance: CGFloat = 100
-    private let autoDeleteThreshold: CGFloat = 200
+    private let autoDeleteThreshold: CGFloat = 220
     private let swipeThreshold: CGFloat = 50
-    private let buttonSpacing: CGFloat = 12 // Space between item and button
+    private let buttonSpacing: CGFloat = 12
+    private let minButtonWidth: CGFloat = 100
+    private let buttonHeight: CGFloat = 50 // Compact height like before
     
     var body: some View {
-        ZStack(alignment: .trailing) {
-            // Background container
-            Color.clear
-            
-            // Delete button with spacing
-            deleteButton
-                .offset(x: calculateButtonOffset())
-            
-            // Main content
-            itemContent
-                .offset(x: offset)
-                .frame(height: itemHeight)
-                .gesture(
-                    DragGesture()
-                        .onChanged { gesture in
-                            handleDragChanged(gesture)
+        GeometryReader { geometry in
+            ZStack(alignment: .trailing) {
+                // Background container
+                Color.clear
+                
+                // Delete button with horizontal expansion
+                deleteButton
+                    .frame(width: buttonWidth)
+                    .offset(x: calculateButtonOffset(screenWidth: geometry.size.width))
+                
+                // Main content
+                itemContent
+                    .offset(x: offset)
+                    .frame(height: itemHeight)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { gesture in
+                                handleDragChanged(gesture, screenWidth: geometry.size.width)
+                            }
+                            .onEnded { gesture in
+                                handleDragEnded(gesture)
+                            }
+                    )
+                    .onChange(of: isActive) { newValue in
+                        if !newValue && offset != 0 {
+                            closeSwipe()
                         }
-                        .onEnded { gesture in
-                            handleDragEnded(gesture)
-                        }
-                )
-                .onChange(of: isActive) { newValue in
-                    if !newValue && offset != 0 {
-                        closeSwipe()
                     }
-                }
+            }
+            .frame(height: itemHeight)
         }
         .frame(height: itemHeight)
         .padding(.vertical, verticalPadding)
         .clipped()
     }
     
-    // MARK: - Delete Button with Capsule Shape
+    // MARK: - Delete Button with Revolutionary Horizontal Expansion
     private var deleteButton: some View {
         Button(action: {
             performDelete()
         }) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Spacer()
+                
                 Image(systemName: "trash.fill")
                     .font(.system(size: 16, weight: .semibold))
                 
                 Text("Delete")
                     .font(.system(size: 16, weight: .semibold))
+                
+                Spacer()
             }
             .foregroundColor(.white)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .frame(height: buttonHeight)
             .background(
                 Capsule()
                     .fill(
                         LinearGradient(
                             colors: [Color.red, Color.red.opacity(0.85)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
                     )
-                    .shadow(color: .red.opacity(0.3), radius: 8, x: 0, y: 4)
+                    .brightness(buttonBrightness)
             )
-            .scaleEffect(buttonScale)
+            .scaleEffect(x: 1.0, y: buttonScale)
             .opacity(buttonOpacity)
         }
         .buttonStyle(PlainButtonStyle())
@@ -162,56 +173,69 @@ struct SwipeableItemView: View {
                 }
                 .padding(.horizontal, 20)
             )
-            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
     
-    // MARK: - Button Offset Calculation with Spacing
-    private func calculateButtonOffset() -> CGFloat {
-        // Button starts completely off-screen
+    // MARK: - Button Offset Calculation
+    private func calculateButtonOffset(screenWidth: CGFloat) -> CGFloat {
         let progress = min(abs(offset) / initialSwipeDistance, 1.0)
-        
-        // Slide in from the right with spacing consideration
-        let maxOffset = 100.0 // Start position off-screen
+        let maxOffset = 150.0
         return maxOffset - (progress * maxOffset)
     }
     
     // MARK: - Gesture Handlers
-    private func handleDragChanged(_ gesture: DragGesture.Value) {
+    private func handleDragChanged(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
         let translation = gesture.translation.width
         
         if translation < 0 {
             // Left swipe - show delete button
             let rawOffset = translation
-            
-            // Allow swiping beyond the auto-delete threshold
             offset = max(rawOffset, -autoDeleteThreshold - 50)
             
-            // Calculate animation progress for button
+            // Calculate animation progress
             let progress = min(abs(offset) / initialSwipeDistance, 1.0)
             
-            // Smooth scale and opacity animation
+            // Calculate horizontal expansion to "catch" the object
+            let swipeDistance = abs(offset)
+            let maxWidth = screenWidth
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.6) // Smooth expansion
+            
+            // Calculate brightness increase as you swipe more
+            let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
+            
+            // Smooth animations
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
+                // Initial appearance (vertical scale)
                 buttonScale = 0.5 + (progress * 0.5)
                 buttonOpacity = progress
+                
+                // Horizontal expansion to catch the object
+                buttonWidth = min(expandedWidth, maxWidth)
+                
+                // Add brightness as you swipe - revolutionary glow effect!
+                buttonBrightness = brightnessProgress * 0.15 // 0 to 0.15 brightness
             }
             
-            // Check if we've reached auto-delete threshold
+            // Haptic feedback at auto-delete threshold
             if abs(offset) >= autoDeleteThreshold {
-                // Provide haptic feedback at threshold
                 let impact = UIImpactFeedbackGenerator(style: .medium)
                 impact.impactOccurred()
             }
             
         } else if offset < 0 {
-            // Right swipe when already open - close the button
+            // Right swipe when already open
             let newOffset = offset + translation
             offset = min(newOffset, 0)
             
             let progress = min(abs(offset) / initialSwipeDistance, 1.0)
+            let swipeDistance = abs(offset)
+            let expandedWidth = minButtonWidth + (swipeDistance * 0.6)
+            let brightnessProgress = min(abs(offset) / autoDeleteThreshold, 1.0)
             
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
                 buttonScale = 0.5 + (progress * 0.5)
                 buttonOpacity = progress
+                buttonWidth = min(expandedWidth, screenWidth)
+                buttonBrightness = brightnessProgress * 0.15
             }
         }
     }
@@ -232,6 +256,8 @@ struct SwipeableItemView: View {
                 offset = -initialSwipeDistance
                 buttonScale = 1.0
                 buttonOpacity = 1.0
+                buttonWidth = minButtonWidth + (initialSwipeDistance * 0.6)
+                buttonBrightness = (initialSwipeDistance / autoDeleteThreshold) * 0.15
                 onSwipeChanged(true)
                 
                 // Haptic feedback
@@ -250,6 +276,8 @@ struct SwipeableItemView: View {
             offset = 0
             buttonScale = 0.5
             buttonOpacity = 0
+            buttonWidth = minButtonWidth
+            buttonBrightness = 0
             onSwipeChanged(false)
         }
     }
@@ -265,8 +293,8 @@ struct SwipeableItemView: View {
         // Smooth disappearance animation
         withAnimation(.spring(response: 0.5, dampingFraction: 0.95)) {
             itemHeight = 0
-            verticalPadding = -6 // Collapse the spacing too
-            offset = -400 // Slide completely off screen
+            verticalPadding = -6
+            offset = -400
             buttonOpacity = 0
         }
         
