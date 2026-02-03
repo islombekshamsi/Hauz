@@ -40,7 +40,8 @@ struct SwipeAction: View {
     }
     
     private func deleteItem(_ item: SwipeItem) {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+        // Smooth removal with spring animation
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.95)) {
             items.removeAll { $0.id == item.id }
         }
         activeSwipeID = nil
@@ -65,24 +66,27 @@ struct SwipeableItemView: View {
     @State private var isDeleting: Bool = false
     @State private var buttonScale: CGFloat = 0.5
     @State private var buttonOpacity: Double = 0
+    @State private var itemHeight: CGFloat = 80
+    @State private var verticalPadding: CGFloat = 0
     
-    private let maxSwipeDistance: CGFloat = 100
+    private let initialSwipeDistance: CGFloat = 100
+    private let autoDeleteThreshold: CGFloat = 200
     private let swipeThreshold: CGFloat = 50
+    private let buttonSpacing: CGFloat = 12 // Space between item and button
     
     var body: some View {
         ZStack(alignment: .trailing) {
             // Background container
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.clear)
-                .frame(height: 80)
+            Color.clear
             
-            // Delete button with dynamic expansion
+            // Delete button with spacing
             deleteButton
                 .offset(x: calculateButtonOffset())
             
             // Main content
             itemContent
                 .offset(x: offset)
+                .frame(height: itemHeight)
                 .gesture(
                     DragGesture()
                         .onChanged { gesture in
@@ -98,9 +102,9 @@ struct SwipeableItemView: View {
                     }
                 }
         }
-        .frame(height: 80)
-        .opacity(isDeleting ? 0 : 1)
-        .scaleEffect(isDeleting ? 0.85 : 1)
+        .frame(height: itemHeight)
+        .padding(.vertical, verticalPadding)
+        .clipped()
     }
     
     // MARK: - Delete Button with Capsule Shape
@@ -122,18 +126,18 @@ struct SwipeableItemView: View {
                 Capsule()
                     .fill(
                         LinearGradient(
-                            colors: [Color.red, Color.red.opacity(0.9)],
+                            colors: [Color.red, Color.red.opacity(0.85)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .shadow(color: .red.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .shadow(color: .red.opacity(0.3), radius: 8, x: 0, y: 4)
             )
             .scaleEffect(buttonScale)
             .opacity(buttonOpacity)
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.trailing, 8)
+        .padding(.trailing, buttonSpacing)
     }
     
     // MARK: - Item Content
@@ -147,17 +151,28 @@ struct SwipeableItemView: View {
                         .foregroundColor(.white)
                     
                     Spacer()
+                    
+                    // Visual indicator for swipe progress
+                    if abs(offset) > swipeThreshold {
+                        Image(systemName: abs(offset) > autoDeleteThreshold * 0.8 ? "arrow.left.circle.fill" : "arrow.left.circle")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white.opacity(0.7))
+                            .transition(.scale.combined(with: .opacity))
+                    }
                 }
                 .padding(.horizontal, 20)
             )
             .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
     
-    // MARK: - Button Offset Calculation
+    // MARK: - Button Offset Calculation with Spacing
     private func calculateButtonOffset() -> CGFloat {
-        // Button starts off-screen and slides in smoothly
-        let progress = min(abs(offset) / maxSwipeDistance, 1.0)
-        return 20 - (progress * 20)
+        // Button starts completely off-screen
+        let progress = min(abs(offset) / initialSwipeDistance, 1.0)
+        
+        // Slide in from the right with spacing consideration
+        let maxOffset = 100.0 // Start position off-screen
+        return maxOffset - (progress * maxOffset)
     }
     
     // MARK: - Gesture Handlers
@@ -167,12 +182,12 @@ struct SwipeableItemView: View {
         if translation < 0 {
             // Left swipe - show delete button
             let rawOffset = translation
-            let clampedOffset = max(rawOffset, -maxSwipeDistance)
             
-            offset = clampedOffset
+            // Allow swiping beyond the auto-delete threshold
+            offset = max(rawOffset, -autoDeleteThreshold - 50)
             
-            // Calculate animation progress
-            let progress = min(abs(clampedOffset) / maxSwipeDistance, 1.0)
+            // Calculate animation progress for button
+            let progress = min(abs(offset) / initialSwipeDistance, 1.0)
             
             // Smooth scale and opacity animation
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
@@ -180,12 +195,19 @@ struct SwipeableItemView: View {
                 buttonOpacity = progress
             }
             
+            // Check if we've reached auto-delete threshold
+            if abs(offset) >= autoDeleteThreshold {
+                // Provide haptic feedback at threshold
+                let impact = UIImpactFeedbackGenerator(style: .medium)
+                impact.impactOccurred()
+            }
+            
         } else if offset < 0 {
             // Right swipe when already open - close the button
             let newOffset = offset + translation
             offset = min(newOffset, 0)
             
-            let progress = min(abs(offset) / maxSwipeDistance, 1.0)
+            let progress = min(abs(offset) / initialSwipeDistance, 1.0)
             
             withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) {
                 buttonScale = 0.5 + (progress * 0.5)
@@ -198,10 +220,16 @@ struct SwipeableItemView: View {
         let translation = gesture.translation.width
         let velocity = gesture.predictedEndTranslation.width - translation
         
+        // Auto-delete if swiped beyond threshold
+        if abs(offset) >= autoDeleteThreshold {
+            performDelete()
+            return
+        }
+        
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             if abs(offset) > swipeThreshold || velocity < -300 {
                 // Snap to open position
-                offset = -maxSwipeDistance
+                offset = -initialSwipeDistance
                 buttonScale = 1.0
                 buttonOpacity = 1.0
                 onSwipeChanged(true)
@@ -226,20 +254,24 @@ struct SwipeableItemView: View {
         }
     }
     
-    // MARK: - Delete Action
+    // MARK: - Delete Action with Smooth Disappearance
     private func performDelete() {
         isDeleting = true
         
         // Strong haptic feedback
-        let impact = UIImpactFeedbackGenerator(style: .medium)
+        let impact = UIImpactFeedbackGenerator(style: .heavy)
         impact.impactOccurred()
         
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            offset = -300 // Slide off screen
+        // Smooth disappearance animation
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.95)) {
+            itemHeight = 0
+            verticalPadding = -6 // Collapse the spacing too
+            offset = -400 // Slide completely off screen
+            buttonOpacity = 0
         }
         
-        // Delay to allow animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+        // Delay to allow animation to complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             onDelete()
         }
     }
