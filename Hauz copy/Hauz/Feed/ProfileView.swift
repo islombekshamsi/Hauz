@@ -274,10 +274,6 @@ struct ProfileView: View {
                 .onTapGesture {
                     toggleSelection(shoe.id)
                 }
-                .transition(.asymmetric(
-                    insertion: .scale.combined(with: .opacity),
-                    removal: .scale(scale: 0.8).combined(with: .opacity)
-                ))
             } else {
                 // In normal mode, use swipe actions
                 SwipeableCardWrapper(
@@ -293,10 +289,6 @@ struct ProfileView: View {
                         }
                     }
                 )
-                .transition(.asymmetric(
-                    insertion: .scale.combined(with: .opacity),
-                    removal: .scale(scale: 0.8).combined(with: .opacity)
-                ))
             }
             
             // Selection checkmark (top-left)
@@ -317,6 +309,10 @@ struct ProfileView: View {
                 .transition(.scale.combined(with: .opacity))
             }
         }
+        .transition(.asymmetric(
+            insertion: .scale.combined(with: .opacity),
+            removal: .scale(scale: 0.8).combined(with: .opacity)
+        ))
     }
     
     // MARK: - Action Buttons (Floating)
