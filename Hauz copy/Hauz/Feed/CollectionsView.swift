@@ -56,8 +56,8 @@ struct CollectionsView: View {
             }
         }
         .sheet(isPresented: $showCreateSheet) {
-            CreateCollectionSheet { newName in
-                await createCollection(name: newName)
+            CreateCollectionSheet { newName, selectedBrands in
+                await createCollection(name: newName, brands: selectedBrands)
             }
         }
         .sheet(item: $selectedCollection) { collection in
@@ -151,7 +151,7 @@ struct CollectionsView: View {
         }
     }
     
-    private func createCollection(name: String) async {
+    private func createCollection(name: String, brands: [String]) async {
         do {
             let newCollection = try await collectionsService.createCollection(name: name)
             await MainActor.run {
@@ -160,8 +160,37 @@ struct CollectionsView: View {
                 }
             }
             print("✅ Created collection: \(name)")
+            
+            // Auto-fill collection with sneakers from selected brands
+            if !brands.isEmpty {
+                await autoFillCollection(collectionId: newCollection.id, brands: brands)
+            }
         } catch {
             debugPrint("Failed to create collection: \(error)")
+        }
+    }
+    
+    private func autoFillCollection(collectionId: UUID, brands: [String]) async {
+        do {
+            let feedService = FeedService()
+            let likedShoes = try await feedService.fetchLikedForProfile()
+            
+            // Filter shoes by selected brands
+            let matchingShoes = likedShoes.filter { shoe in
+                brands.contains(shoe.brand)
+            }
+            
+            // Add matching shoes to collection
+            for shoe in matchingShoes {
+                try? await collectionsService.addSneakerToCollection(sneakerId: shoe.id, collectionId: collectionId)
+            }
+            
+            print("✅ Auto-filled collection with \(matchingShoes.count) sneakers from \(brands.count) brand(s)")
+            
+            // Reload collections to update counts
+            await loadCollections()
+        } catch {
+            debugPrint("Failed to auto-fill collection: \(error)")
         }
     }
     
@@ -269,72 +298,117 @@ struct CreateCollectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var collectionName = ""
     @State private var isCreating = false
+    @State private var availableBrands: [String] = []
+    @State private var selectedBrands: [String] = []
+    @State private var isLoadingBrands = true
     
-    let onCreate: (String) async -> Void
+    let onCreate: (String, [String]) async -> Void
+    
+    private let feedService = FeedService()
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color("HauzBg").ignoresSafeArea()
                 
-                VStack(spacing: 20) {
-                    Spacer().frame(height: 40)
-                    
-                    // Icon
-                    Image(systemName: "folder.badge.plus")
-                        .font(.system(size: 60))
-                        .foregroundColor(Color("HauzFocus"))
-                    
-                    Text("New Collection")
-                        .font(.custom("Outfit-Black", size: 28))
-                        .foregroundColor(Color("HauzFocus"))
-                    
-                    // Text field
-                    TextField("Collection name", text: $collectionName)
-                        .font(.custom("Outfit-Black", size: 18))
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white)
-                                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
-                        )
-                        .padding(.horizontal, 30)
-                        .padding(.top, 20)
-                        .submitLabel(.done)
-                        .onSubmit {
-                            if !collectionName.isEmpty {
-                                createAndDismiss()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        Spacer().frame(height: 40)
+                        
+                        // Icon
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 60))
+                            .foregroundColor(Color("HauzFocus"))
+                        
+                        Text("New Collection")
+                            .font(.custom("Outfit-Black", size: 28))
+                            .foregroundColor(Color("HauzFocus"))
+                        
+                        // Text field
+                        TextField("Collection name", text: $collectionName)
+                            .font(.custom("Outfit-Black", size: 18))
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.white)
+                                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                            )
+                            .padding(.horizontal, 30)
+                            .padding(.top, 20)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                if !collectionName.isEmpty {
+                                    createAndDismiss()
+                                }
+                            }
+                        
+                        Text("Max 50 characters")
+                            .font(.custom("Outfit-Black", size: 13))
+                            .foregroundColor(Color("HauzLight"))
+                        
+                        // Brand selection section
+                        if !availableBrands.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Quick Fill by Brand")
+                                        .font(.custom("Outfit-SemiBold", size: 18))
+                                        .foregroundColor(Color("HauzFocus"))
+                                    
+                                    Spacer()
+                                    
+                                    if !selectedBrands.isEmpty {
+                                        Text("\(selectedBrands.count) selected")
+                                            .font(.custom("Outfit-Medium", size: 14))
+                                            .foregroundColor(Color("HauzLight"))
+                                    }
+                                }
+                                .padding(.horizontal, 30)
+                                .padding(.top, 10)
+                                
+                                Text("Select brands to auto-add your liked sneakers")
+                                    .font(.custom("Outfit-Medium", size: 13))
+                                    .foregroundColor(Color("HauzLight"))
+                                    .padding(.horizontal, 30)
+                                
+                                // Brand chips
+                                BrandChipsView(
+                                    brands: availableBrands,
+                                    selectedBrands: $selectedBrands
+                                )
+                                .padding(.horizontal, 30)
+                                .padding(.top, 8)
+                            }
+                        } else if isLoadingBrands {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Color("HauzFocus")))
+                                .padding(.top, 20)
+                        }
+                        
+                        Spacer().frame(height: 20)
+                        
+                        // Create button
+                        Button(action: createAndDismiss) {
+                            if isCreating {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                            } else {
+                                Text("Create")
+                                    .font(.custom("Outfit-Black", size: 18))
+                                    .foregroundColor(Color("HauzLight"))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
                             }
                         }
-                    
-                    Text("Max 50 characters")
-                        .font(.custom("Outfit-Black", size: 13))
-                        .foregroundColor(Color("HauzLight"))
-                    
-                    Spacer()
-                    
-                    // Create button
-                    Button(action: createAndDismiss) {
-                        if isCreating {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                        } else {
-                            Text("Create")
-                                .font(.custom("Outfit-Black", size: 18))
-                                .foregroundColor(Color("HauzLight"))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(collectionName.isEmpty ? Color.gray : Color("HauzFocus"))
+                        )
+                        .disabled(collectionName.isEmpty || isCreating)
+                        .padding(.horizontal, 30)
+                        .padding(.bottom, 30)
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(collectionName.isEmpty ? Color.gray : Color("HauzFocus"))
-                    )
-                    .disabled(collectionName.isEmpty || isCreating)
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 30)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -348,6 +422,29 @@ struct CreateCollectionSheet: View {
                 }
             }
         }
+        .task {
+            await loadBrands()
+        }
+    }
+    
+    private func loadBrands() async {
+        do {
+            let likedShoes = try await feedService.fetchLikedForProfile()
+            
+            // Extract unique brands, sorted alphabetically
+            let brands = Set(likedShoes.map { $0.brand })
+                .sorted()
+            
+            await MainActor.run {
+                availableBrands = brands
+                isLoadingBrands = false
+            }
+        } catch {
+            debugPrint("Failed to load brands: \(error)")
+            await MainActor.run {
+                isLoadingBrands = false
+            }
+        }
     }
     
     private func createAndDismiss() {
@@ -355,10 +452,123 @@ struct CreateCollectionSheet: View {
         isCreating = true
         
         Task {
-            await onCreate(collectionName)
+            await onCreate(collectionName, selectedBrands)
             await MainActor.run {
                 dismiss()
             }
+        }
+    }
+}
+
+// MARK: - Brand Chips View
+struct BrandChipsView: View {
+    let brands: [String]
+    @Binding var selectedBrands: [String]
+    
+    var body: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(brands, id: \.self) { brand in
+                BrandChip(
+                    brand: brand,
+                    isSelected: selectedBrands.contains(brand),
+                    onTap: {
+                        toggleBrand(brand)
+                    }
+                )
+            }
+        }
+    }
+    
+    private func toggleBrand(_ brand: String) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            if selectedBrands.contains(brand) {
+                selectedBrands.removeAll { $0 == brand }
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
+            } else {
+                selectedBrands.append(brand)
+                let impact = UIImpactFeedbackGenerator(style: .medium)
+                impact.impactOccurred()
+            }
+        }
+    }
+}
+
+// MARK: - Brand Chip
+struct BrandChip: View {
+    let brand: String
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            Text(brand)
+                .font(.custom("Outfit-SemiBold", size: 14))
+                .foregroundColor(isSelected ? .white : Color("HauzFocus"))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color("HauzFocus") : Color.white)
+                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color("HauzFocus"), lineWidth: isSelected ? 0 : 1.5)
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Flow Layout
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = FlowResult(
+            in: proposal.replacingUnspecifiedDimensions().width,
+            subviews: subviews,
+            spacing: spacing
+        )
+        return result.size
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = FlowResult(
+            in: bounds.width,
+            subviews: subviews,
+            spacing: spacing
+        )
+        for (index, subview) in subviews.enumerated() {
+            subview.place(at: result.positions[index], proposal: .unspecified)
+        }
+    }
+    
+    struct FlowResult {
+        var size: CGSize = .zero
+        var positions: [CGPoint] = []
+        
+        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var lineHeight: CGFloat = 0
+            
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                
+                if x + size.width > maxWidth && x > 0 {
+                    x = 0
+                    y += lineHeight + spacing
+                    lineHeight = 0
+                }
+                
+                positions.append(CGPoint(x: x, y: y))
+                lineHeight = max(lineHeight, size.height)
+                x += size.width + spacing
+            }
+            
+            self.size = CGSize(width: maxWidth, height: y + lineHeight)
         }
     }
 }
