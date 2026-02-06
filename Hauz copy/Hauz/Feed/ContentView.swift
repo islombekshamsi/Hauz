@@ -921,17 +921,22 @@ struct FilterView: View {
                 if let gender = profile.gender {
                     selectedGender = gender == "Male" ? .male : .female
                 }
-                // Load user's preferred brands from onboarding
-                if let brands = profile.brands, !brands.isEmpty {
-                    // Normalize brand names to match database
+                
+                // Load user's preferred brands from profile
+                // IMPORTANT: Respect empty array as valid preference (means "all brands")
+                if let brands = profile.brands {
+                    // If brands exists (even if empty), use it
                     selectedBrands = brands.map { normalizeBrandName($0) }
+                    print("📋 loadCurrentPreferences: loaded \(selectedBrands.count) brands: \(selectedBrands)")
                 } else {
-                    // Default to some popular brands if none selected (exact database values)
+                    // Only use defaults if profile.brands is nil (never been set)
+                    // This happens only on first app launch after onboarding
                     selectedBrands = ["Nike", "Jordan", "adidas"]
+                    print("📋 loadCurrentPreferences: using defaults (profile.brands was nil)")
                 }
             }
         } catch {
-            debugPrint("Failed to load preferences: \(error)")
+            debugPrint("❌ Failed to load preferences: \(error)")
         }
     }
     
@@ -980,7 +985,10 @@ struct FilterView: View {
                 .eq("id", value: userId)
                 .execute()
             
-            print("✅ Profile preferences updated")
+            print("✅ Profile preferences updated: \(selectedBrands.count) brands saved")
+            if selectedBrands.isEmpty {
+                print("📋 Saved empty brand array (show all brands)")
+            }
         } catch {
             // Silently fail - user preferences update is not critical
             print("⚠️ Failed to update profile preferences (non-critical): \(error)")
