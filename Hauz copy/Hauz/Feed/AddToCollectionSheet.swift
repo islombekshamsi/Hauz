@@ -104,7 +104,7 @@ struct AddToCollectionSheet: View {
             }
         }
         .sheet(isPresented: $showCreateNew) {
-            CreateCollectionSheet { newName in
+            CreateCollectionSheet { newName, _ in
                 await createAndSelectCollection(name: newName)
             }
         }
