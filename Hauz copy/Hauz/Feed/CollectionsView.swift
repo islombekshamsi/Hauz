@@ -268,12 +268,12 @@ struct CollectionGridItem: View {
                 // Bottom bar with name and count
                 VStack(alignment: .leading, spacing: 3) {
                     Text(collection.name)
-                        .font(.custom("bernoru-blackultraexpanded", size: 13))
+                        .font(.custom("Outfit-Black", size: 16))
                         .foregroundColor(Color("HauzFocus"))
                         .lineLimit(1)
                     
                     Text("\(collection.itemCount) \(collection.itemCount == 1 ? "item" : "items")")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.custom("Outfit-Black", size: 12))
                         .foregroundColor( Color("HauzBg").opacity(0.6))
                 }
                 .padding(.horizontal, 12)
