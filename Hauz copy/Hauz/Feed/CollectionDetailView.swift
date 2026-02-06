@@ -354,16 +354,16 @@ struct CollectionDetailView: View {
     
     private var emptyState: some View {
         VStack(spacing: 20) {
-            Image(systemName: "shoeprints.fill")
+            /*Image(systemName: "shoeprints.fill")
                 .font(.system(size: 60))
-                .foregroundColor(Color("HauzFocus").opacity(0.5))
+                .foregroundColor(Color("HauzFocus").opacity(0.5))*/
             
             Text("No Sneakers Yet")
-                .font(.custom("bernoru-blackultraexpanded", size: 22))
+                .font(.custom("Outfit-Black", size: 20))
                 .foregroundColor(Color("HauzFocus"))
             
             Text("Add sneakers to this collection from your liked sneakers")
-                .font(.system(size: 15))
+                .font(.custom("Outfit-Black", size: 16))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
