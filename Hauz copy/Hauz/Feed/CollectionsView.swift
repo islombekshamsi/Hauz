@@ -370,9 +370,19 @@ struct CreateCollectionSheet: View {
                                     .foregroundColor(Color("HauzLight"))
                                     .padding(.horizontal, 30)
                                 
-                                // Brand chips
-                                BrandChipsView(
+                                // Brand chips - using the same layout as UserInfo
+                                CollectionBrandChipsView(
+                                    spacing: 12,
                                     brands: availableBrands,
+                                    content: { brand, isSelected in
+                                        CollectionBrandChip(
+                                            brand: brand,
+                                            isSelected: isSelected
+                                        )
+                                    },
+                                    didChangeSelection: { selection in
+                                        selectedBrands = selection
+                                    },
                                     selectedBrands: $selectedBrands
                                 )
                                 .padding(.horizontal, 30)
@@ -460,116 +470,149 @@ struct CreateCollectionSheet: View {
     }
 }
 
-// MARK: - Brand Chips View
-struct BrandChipsView: View {
-    let brands: [String]
+// MARK: - Collection Brand Chips View (matching UserInfo.swift style)
+struct CollectionBrandChipsView<Content: View>: View {
+    var spacing: CGFloat = 12
+    var brands: [String]
+    var animation: Animation = .spring(response: 0.35, dampingFraction: 0.7)
+    @ViewBuilder var content: (String, Bool) -> Content
+    var didChangeSelection: ([String]) -> ()
     @Binding var selectedBrands: [String]
     
     var body: some View {
-        FlowLayout(spacing: 8) {
+        CollectionCustomChipLayout(spacing: spacing) {
             ForEach(brands, id: \.self) { brand in
-                BrandChip(
-                    brand: brand,
-                    isSelected: selectedBrands.contains(brand),
-                    onTap: {
-                        toggleBrand(brand)
+                content(brand, selectedBrands.contains(brand))
+                    .contentShape(.rect)
+                    .onTapGesture {
+                        handleTap(on: brand)
                     }
-                )
             }
         }
     }
     
-    private func toggleBrand(_ brand: String) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+    private func handleTap(on brand: String) {
+        withAnimation(animation) {
             if selectedBrands.contains(brand) {
-                selectedBrands.removeAll { $0 == brand }
-                let impact = UIImpactFeedbackGenerator(style: .light)
-                impact.impactOccurred()
+                selectedBrands.removeAll(where: { $0 == brand })
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
             } else {
                 selectedBrands.append(brand)
-                let impact = UIImpactFeedbackGenerator(style: .medium)
-                impact.impactOccurred()
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
             }
         }
+        didChangeSelection(selectedBrands)
     }
 }
 
-// MARK: - Brand Chip
-struct BrandChip: View {
-    let brand: String
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            Text(brand)
-                .font(.custom("Outfit-SemiBold", size: 14))
-                .foregroundColor(isSelected ? .white : Color("HauzFocus"))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color("HauzFocus") : Color.white)
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(Color("HauzFocus"), lineWidth: isSelected ? 0 : 1.5)
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-// MARK: - Flow Layout
-struct FlowLayout: Layout {
+// MARK: - Collection Custom Chip Layout (matching UserInfo.swift)
+fileprivate struct CollectionCustomChipLayout: Layout {
     var spacing: CGFloat
     
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(
-            in: proposal.replacingUnspecifiedDimensions().width,
-            subviews: subviews,
-            spacing: spacing
-        )
-        return result.size
+        let width = proposal.width ?? 0
+        return .init(width: width, height: maxHeight(proposal: proposal, subviews: subviews))
     }
     
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(
-            in: bounds.width,
-            subviews: subviews,
-            spacing: spacing
-        )
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: result.positions[index], proposal: .unspecified)
+        var origin = bounds.origin
+        
+        for subview in subviews {
+            let fitSize = subview.sizeThatFits(proposal)
+            
+            if (origin.x + fitSize.width) > bounds.maxX {
+                origin.x = bounds.minX
+                origin.y += fitSize.height + spacing
+                subview.place(at: origin, proposal: proposal)
+                origin.x += fitSize.width + spacing
+            } else {
+                subview.place(at: origin, proposal: proposal)
+                origin.x += fitSize.width + spacing
+            }
         }
     }
     
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
+    private func maxHeight(proposal: ProposedViewSize, subviews: Subviews) -> CGFloat {
+        var origin: CGPoint = .zero
         
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var lineHeight: CGFloat = 0
+        for subview in subviews {
+            let fitSize = subview.sizeThatFits(proposal)
             
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-                
-                if x + size.width > maxWidth && x > 0 {
-                    x = 0
-                    y += lineHeight + spacing
-                    lineHeight = 0
-                }
-                
-                positions.append(CGPoint(x: x, y: y))
-                lineHeight = max(lineHeight, size.height)
-                x += size.width + spacing
+            if (origin.x + fitSize.width) > (proposal.width ?? 0) {
+                origin.x = 0
+                origin.y += fitSize.height + spacing
+                origin.x += fitSize.width + spacing
+            } else {
+                origin.x += fitSize.width + spacing
             }
             
-            self.size = CGSize(width: maxWidth, height: y + lineHeight)
+            if subview == subviews.last {
+                origin.y += fitSize.height
+            }
         }
+        return origin.y
+    }
+}
+
+// MARK: - Collection Brand Chip (matching UserInfo.swift style)
+struct CollectionBrandChip: View {
+    let brand: String
+    let isSelected: Bool
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(brand)
+                .font(.custom("Outfit-Medium", size: 16))
+                .foregroundStyle(isSelected ? .white : Color.primary)
+            
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .opacity(!isSelected ? 1 : 0)
+                
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color("HauzFocus"),
+                                Color("HauzFocus").opacity(0.85)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .opacity(isSelected ? 1 : 0)
+            }
+        }
+        .shadow(
+            color: isSelected
+                ? Color("HauzFocus").opacity(0.35)
+                : Color.black.opacity(0.04),
+            radius: isSelected ? 10 : 4,
+            x: 0,
+            y: isSelected ? 6 : 2
+        )
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isSelected)
     }
 }
 
