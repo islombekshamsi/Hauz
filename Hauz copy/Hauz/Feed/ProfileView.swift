@@ -147,12 +147,12 @@ struct ProfileView: View {
                     Text(isSelectMode ? "Done" : "Select")
                         .font(.custom("Outfit-SemiBold", size: 14))
                 }
-                .foregroundColor(.white)
+                .foregroundColor(isSelectMode ? Color("HauzFocus") : Color("HauzLight"))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelectMode ? Color.green : Color("HauzFocus"))
+                        .fill(isSelectMode ? Color("HauzLight") : Color("HauzFocus"))
                 )
             }
         }
@@ -205,6 +205,7 @@ struct ProfileView: View {
             FlippableShoeCard(card: shoe, onTogglePin: {
                 togglePin(for: shoe)
             })
+            .id("\(shoe.id)-\(shoe.isPinned)") // Force re-render when isPinned changes
             .scaleEffect(0.48) // Scale down to fit 2 per row
             .frame(width: 173, height: 154) // Scaled dimensions
             .opacity(isSelectMode ? 0.95 : 1.0)
@@ -598,15 +599,24 @@ struct FlippableShoeCard: View {
                     
                     // Pin button - top left
                     Button(action: onTogglePin) {
-                        Image(systemName: card.isPinned ? "star.fill" : "star")
-                            .font(.system(size: 22))
-                            .foregroundColor(card.isPinned ? Color("HauzBg") : Color("HauzBg"))
-                            .padding(12)
-                            .background(
-                                Circle()
-                                    .fill(Color.white)
-                                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
-                            )
+                        ZStack {
+                            Image(systemName: "star")
+                                .font(.system(size: 22))
+                                .foregroundColor(Color("HauzBg"))
+                                .opacity(card.isPinned ? 0 : 1)
+                            
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(Color("HauzBg"))
+                                .opacity(card.isPinned ? 1 : 0)
+                        }
+                        .padding(12)
+                        .background(
+                            Circle()
+                                .fill(Color.white)
+                                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+                        )
+                        .animation(.easeInOut(duration: 0.2), value: card.isPinned)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.top, 20)
