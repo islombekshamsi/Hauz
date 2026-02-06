@@ -153,7 +153,7 @@ struct SneakersView: View {
                         .stacked(at: indexOf(card), in: visibleCards.count)
                     }
                 }
-                .frame(height: 620)
+                .frame(height: 640)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8), value: cards)
                 
                 Spacer()
@@ -233,9 +233,9 @@ struct CardView: View {
                 imageSection
                     .frame(height: 360)
                 
-                // Info section - compact bottom area
+                // Info section - compact bottom area with more space for shoe name
                 infoSection
-                    .frame(height: 200)
+                    .frame(height: 220)
             }
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -270,7 +270,7 @@ struct CardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .padding(.top, 60)
         }
-        .frame(width: 360, height: 400)
+        .frame(width: 360, height: 420)
         .offset(x: offset.width, y: offset.height)
         .rotationEffect(.degrees(rotation))
         .gesture(
@@ -336,39 +336,32 @@ struct CardView: View {
     
     // MARK: - Info Section
     private var infoSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                // Price - most important, biggest
-                Text(formattedPrice)
-                    .font(.custom("Outfit-Black", size: 60))
-                    .foregroundColor(Color("HauzBg"))
-                
-                // Shoe name - second priority
-                Text(card.shoeName)
-                    .font(.custom("Outfit-SemiBold", size: 15))
-                    .foregroundColor(Color("HauzFocus"))
-                    .lineLimit(2)
-                
-                // Brand name - third priority
-                Text(card.brandName)
-                    .font(.custom("Outfit-SemiBold", size: 12))
-                    .foregroundColor(Color("HauzFocus"))
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            // Price - most important, biggest
+            Text(formattedPrice)
+                .font(.custom("Outfit-Black", size: 55))
+                .foregroundColor(Color("HauzBg"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             
+            // Shoe name - second priority (with flexible height)
+            Text(card.shoeName)
+                .font(.custom("Outfit-SemiBold", size: 16))
+                .foregroundColor(Color("HauzBg"))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+            
+            Spacer(minLength: 8)
+            
+            // Bottom row: Brand and View button
             HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: trendIcon)
-                        .font(.system(size: 13, weight: .bold))
-                    Text(formattedTrend)
-                        .font(.custom("bernoru-blackultraexpanded", size: 13))
-                }
-                .foregroundColor(trendColor)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(trendColor.opacity(0.12))
-                )
+                Text(card.brandName)
+                    .font(.custom("Outfit-Black", size: 22))
+                    .foregroundColor(Color("HauzBg"))
+                    .lineLimit(1)
                 
                 Spacer()
                 
@@ -379,13 +372,13 @@ struct CardView: View {
                 }) {
                     HStack(spacing: 6) {
                         Text("View")
-                            .font(.custom("Outfit-Medium", size: 20))
+                            .font(.custom("Outfit-Medium", size: 18))
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 15, weight: .heavy))
+                            .font(.system(size: 14, weight: .heavy))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
                     .background(
                         RoundedRectangle(cornerRadius: 3)
                             .fill(Color("HauzBg"))
