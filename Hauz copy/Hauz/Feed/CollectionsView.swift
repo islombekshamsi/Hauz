@@ -274,7 +274,7 @@ struct CollectionGridItem: View {
                     
                     Text("\(collection.itemCount) \(collection.itemCount == 1 ? "item" : "items")")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(collection.itemCount == 0 ? Color("HauzFocus").opacity(0.4) : Color("HauzBg").opacity(0.6))
+                        .foregroundColor( Color("HauzBg").opacity(0.6))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
