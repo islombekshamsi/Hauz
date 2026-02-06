@@ -98,14 +98,19 @@ final class FeedService: ObservableObject {
             swipedLeftIDs = Set(swipes.filter { $0.direction == "left" }.map { $0.sneakerID })
             returnDisabledIDs = (try? await fetchReturnDisabledIDs()) ?? []
             
-            if randomizeOffsets {
-                let jitter = Int.random(in: 0...400)
+            // IMPORTANT: When applying specific brand filters, ALWAYS reset offsets to 0
+            // This prevents offset exhaustion when switching between brands
+            if randomizeOffsets && brands.isEmpty {
+                // Only randomize if showing all brands (magic wand scenario)
+                let jitter = Int.random(in: 0...200) // Reduced from 400 to prevent exhaustion
                 preferredOffset = jitter
                 exploratoryOffset = jitter
             } else {
+                // Reset to 0 for any specific brand filtering
                 preferredOffset = 0
                 exploratoryOffset = 0
             }
+            
             lastSearchSignature = nil
             isSemanticSearchActive = false
             currentSearchQuery = nil
@@ -131,34 +136,43 @@ final class FeedService: ObservableObject {
             feed = cards
             noResultsForFilters = cards.isEmpty
             
-            preferredOffset += pageSize
-            exploratoryOffset += pageSize
+            // Only advance offsets if we got results
+            if !cards.isEmpty {
+                preferredOffset += pageSize
+                exploratoryOffset += pageSize
+            }
         } catch {
             debugPrint("FeedService loadWithFilters error: \(error)")
         }
     }
     
     /// Random exploration using the same filter pipeline (gender only).
+    /// Clears brand filters but keeps gender and expands price range for maximum variety.
     func loadRandomExploration() async {
         let profile = await fetchProfileOrNil()
         let gender = profile?.gender ?? ""
+        print("✨ loadRandomExploration: clearing brand filters, keeping gender=\(gender)")
         await loadWithFilters(
             gender: gender,
-            brands: [],
-            priceMin: 0,
-            priceMax: 10000,
+            brands: [],           // Clear brands for exploration
+            priceMin: 10,         // Set reasonable minimum to exclude $0 items
+            priceMax: 875,        // Keep max reasonable to avoid outliers
             randomizeOffsets: true
         )
     }
     
     /// Load more feed items when running low.
     func loadMore() async {
-        guard !isLoadingMore else { return }
+        guard !isLoadingMore else { 
+            print("⏸️ loadMore: already loading, skipping")
+            return 
+        }
         isLoadingMore = true
         defer { isLoadingMore = false }
         
         do {
             if feed.isEmpty {
+                print("🔄 loadMore: feed empty, resetting offsets")
                 preferredOffset = 0
                 exploratoryOffset = 0
             }
@@ -169,8 +183,11 @@ final class FeedService: ObservableObject {
             // On reload, rely only on exploratory (no brand preference)
             var cards = try await fetchExploratorySneakers(profile: profile, offset: exploratoryOffset)
             
+            print("🔄 loadMore: fetched \(cards.count) cards at offset \(exploratoryOffset)")
+            
             // If we got nothing (e.g. offsets too far), reset offsets once and try again
-            if cards.isEmpty {
+            if cards.isEmpty && exploratoryOffset > 0 {
+                print("🔄 loadMore: got 0 cards, resetting offset and retrying")
                 preferredOffset = 0
                 exploratoryOffset = 0
                 cards = try await fetchExploratorySneakers(profile: profile, offset: exploratoryOffset)
@@ -179,13 +196,10 @@ final class FeedService: ObservableObject {
             // Track if filters are too restrictive
             if cards.isEmpty && feed.isEmpty {
                 noResultsForFilters = true
+                print("⚠️ loadMore: no results with current filters")
             } else {
                 noResultsForFilters = false
             }
-            
-            // Advance offsets for next page after successful fetch
-            preferredOffset += pageSize
-            exploratoryOffset += pageSize
             
             // Filter out already known or swiped
             let existingIDs = Set(feed.map { $0.id })
@@ -195,24 +209,37 @@ final class FeedService: ObservableObject {
                 !swipedLeftIDs.contains($0.id)
             }
             
-            feed.append(contentsOf: newCards)
+            print("🔄 loadMore: \(newCards.count) new cards after filtering")
             
-            // Fallback: if still nothing was appended, hard reset offsets and try once more
-            if newCards.isEmpty {
-                preferredOffset = 0
-                exploratoryOffset = 0
+            // Only advance offsets if we got new cards
+            if !newCards.isEmpty {
+                feed.append(contentsOf: newCards)
+                preferredOffset += pageSize
+                exploratoryOffset += pageSize
+            } else if !cards.isEmpty {
+                // We got cards but they were all filtered out (already seen/swiped)
+                // Advance offset anyway to get fresh results next time
+                print("🔄 loadMore: all cards filtered out, advancing offset")
+                preferredOffset += pageSize
+                exploratoryOffset += pageSize
+                
+                // Try once more with new offset
                 let retry = try await fetchExploratorySneakers(profile: profile, offset: exploratoryOffset)
                 let retryNew = retry.filter {
                     !existingIDs.contains($0.id) &&
                     !swipedRightIDs.contains($0.id) &&
                     !swipedLeftIDs.contains($0.id)
                 }
-                feed.append(contentsOf: retryNew)
-                preferredOffset += pageSize
-                exploratoryOffset += pageSize
+                if !retryNew.isEmpty {
+                    feed.append(contentsOf: retryNew)
+                    preferredOffset += pageSize
+                    exploratoryOffset += pageSize
+                }
             }
+            
+            print("🔄 loadMore: complete, feed now has \(feed.count) cards")
         } catch {
-            debugPrint("FeedService loadMore error: \(error)")
+            debugPrint("❌ FeedService loadMore error: \(error)")
         }
     }
     
@@ -555,9 +582,11 @@ private extension FeedService {
             )
         }
 
-        // If nothing found (e.g., gender mismatch), fall back to gender-agnostic fetch (still excluding swipes)
-        if mapped.isEmpty {
-            let fallback: [SneakerRow] = try await querySneakers(limit: pageSize, offset: 0, gender: nil, brands: nil, excludeIDs: excluded)
+        // IMPROVED FALLBACK: Only fall back if truly empty AND gender was set
+        // This prevents showing all brands when specific brand filter returns nothing
+        if mapped.isEmpty && gender != nil {
+            print("⚠️ fetchSneakers: trying fallback without gender filter")
+            let fallback: [SneakerRow] = try await querySneakers(limit: pageSize, offset: 0, gender: nil, brands: brands.isEmpty ? nil : brands, excludeIDs: excluded)
             mapped = fallback.map { row in
                 SneakerCard(
                     id: row.id,
@@ -569,6 +598,24 @@ private extension FeedService {
                     stockxLink: row.link,
                     colors: row.colors
                 )
+            }
+            
+            // If STILL empty after removing gender, only then remove brand filter
+            if mapped.isEmpty && !brands.isEmpty {
+                print("⚠️ fetchSneakers: final fallback - removing brand filter")
+                let finalFallback: [SneakerRow] = try await querySneakers(limit: pageSize, offset: 0, gender: nil, brands: nil, excludeIDs: excluded)
+                mapped = finalFallback.map { row in
+                    SneakerCard(
+                        id: row.id,
+                        name: row.name,
+                        brand: row.brand ?? "Unknown",
+                        price: row.retail_price,
+                        imageURL: row.image_url.flatMap(URL.init),
+                        gender: row.gender,
+                        stockxLink: row.link,
+                        colors: row.colors
+                    )
+                }
             }
         }
 
@@ -607,7 +654,7 @@ private extension FeedService {
     func querySneakers(limit: Int, offset: Int, gender: String?, brands: [String]?, excludeIDs: Set<UUID>) async throws -> [SneakerRow] {
         var collected: [SneakerRow] = []
         var attempts = 0
-        let maxAttempts = 5
+        let maxAttempts = 3  // Reduced from 5 to improve performance
         let batchSize = 100 // Fetch 100 at a time
         
         // Get price range from cached profile
@@ -643,8 +690,15 @@ private extension FeedService {
         
         // Keep fetching batches until we have enough unique cards or hit max attempts
         while collected.count < limit && attempts < maxAttempts {
-            // Use random offset to avoid always hitting the same swiped shoes
-            let randomOffset = offset + (attempts * batchSize) + Int.random(in: 0...200)
+            // OPTIMIZATION: Use smaller random jitter to prevent offset exhaustion
+            // For specific brands, keep offset low; for all brands, allow more exploration
+            let maxJitter = (brands?.isEmpty ?? true) ? 150 : 50
+            let randomJitter = Int.random(in: 0...maxJitter)
+            let currentOffset = offset + (attempts * batchSize) + randomJitter
+            
+            // SAFETY: Cap the offset to prevent querying beyond reasonable limits
+            // This prevents timeout errors and empty results
+            let safeOffset = min(currentOffset, 800)
             
             var query = supabase
                 .from("sneakers_only")
@@ -681,7 +735,7 @@ private extension FeedService {
             
             let rows: [SneakerRow] = try await query
                 .order("created_at", ascending: false)
-                .range(from: randomOffset, to: randomOffset + batchSize - 1)
+                .range(from: safeOffset, to: safeOffset + batchSize - 1)
                 .execute()
                 .value
             
@@ -690,6 +744,9 @@ private extension FeedService {
                 let genderCounts = Dictionary(grouping: rows, by: { $0.gender ?? "nil" })
                     .mapValues { $0.count }
                 print("🔍 querySneakers: DB returned genders: \(genderCounts)")
+                if rows.isEmpty {
+                    print("⚠️ querySneakers: EMPTY RESULT on first attempt (offset: \(safeOffset))")
+                }
             }
             
             // Filter out excluded IDs and already collected ones
@@ -699,11 +756,26 @@ private extension FeedService {
             collected.append(contentsOf: freshRows)
             attempts += 1
             
-            // If we got nothing new, break to avoid infinite loop
-            if freshRows.isEmpty && rows.count < batchSize {
+            // EARLY EXIT: If we got no rows from DB (not just filtered out), we've hit the end
+            if rows.isEmpty {
+                print("🔍 querySneakers: reached end of available inventory (attempt \(attempts))")
+                break
+            }
+            
+            // If we got nothing new after filtering, try once more with reset offset
+            if freshRows.isEmpty && attempts == 1 && safeOffset > 0 {
+                print("🔍 querySneakers: no fresh results, resetting offset for retry")
+                continue
+            }
+            
+            // If still nothing fresh and we've tried twice, break
+            if freshRows.isEmpty && attempts >= 2 {
+                print("🔍 querySneakers: no fresh results after \(attempts) attempts, stopping")
                 break
             }
         }
+        
+        print("🔍 querySneakers: collected \(collected.count) items after \(attempts) attempts")
         
         // Apply brand diversification to avoid showing too many shoes from the same brand
         let diversified = diversifyByBrand(collected, targetCount: limit)
@@ -789,7 +861,7 @@ private extension FeedService {
         let targetTotal = Int(ceil(Double(limit) * oversampleFactor))
         let perBrandTarget = max(20, Int(ceil(Double(targetTotal) / Double(brands.count))))
         let perBrandBatchSize = max(60, perBrandTarget)
-        let perBrandAttempts = 3
+        let perBrandAttempts = 2  // Reduced from 3 for efficiency
         
         var combined: [SneakerRow] = []
         combined.reserveCapacity(targetTotal)
@@ -800,9 +872,12 @@ private extension FeedService {
             var attempts = 0
             
             while brandCollected.count < perBrandTarget && attempts < perBrandAttempts {
-                // Brand-specific jitter so we don't hit identical ranges across brands.
-                let jitter = (i * 97) + Int.random(in: 0...150)
-                let randomOffset = offset + (attempts * perBrandBatchSize) + jitter
+                // OPTIMIZATION: Use smaller jitter to prevent exhaustion on small-inventory brands
+                let jitter = (i * 50) + Int.random(in: 0...50)  // Reduced from 97/150
+                let currentOffset = offset + (attempts * perBrandBatchSize) + jitter
+                
+                // SAFETY: Cap offset per brand to prevent exhaustion
+                let randomOffset = min(currentOffset, 400)
                 
                 var query = supabase
                     .from("sneakers_only")
@@ -843,11 +918,19 @@ private extension FeedService {
                 brandCollected.append(contentsOf: fresh)
                 
                 attempts += 1
+                
+                // EARLY EXIT: If we got no rows from DB, we've reached the end for this brand
+                if rows.isEmpty {
+                    print("🧩 Brand '\(brand)': reached end of inventory (attempt \(attempts))")
+                    break
+                }
+                
                 if fresh.isEmpty && rows.count < perBrandBatchSize {
                     break
                 }
             }
             
+            print("🧩 Brand '\(brand)': collected \(brandCollected.count) items")
             combined.append(contentsOf: brandCollected)
         }
         
