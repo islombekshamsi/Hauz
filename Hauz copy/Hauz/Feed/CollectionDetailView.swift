@@ -364,7 +364,7 @@ struct CollectionDetailView: View {
             
             Text("Add sneakers to this collection from your liked sneakers")
                 .font(.custom("Outfit-Black", size: 16))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color("HauzLight"))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
