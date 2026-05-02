@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 
 struct ShoeCard: Identifiable {
     var id: String = UUID().uuidString
@@ -129,10 +130,69 @@ private struct CViewSearchOverlay: View {
     @Binding var isPresented: Bool
     @Binding var searchText: String
 
+    private let suggestions = [
+        "Jordan 1 Retro High OG",
+        "Yeezy Boost 350",
+        "Nike Dunk Low Panda",
+        "New Balance 550",
+        "ASICS Gel-1130",
+        "Travis Scott Air Jordan 4",
+        "Adidas Samba OG",
+        "On Cloudmonster",
+    ]
+    @State private var suggestionIndex = 0
+    private let cycleTimer = Timer.publish(every: 2.4, on: .main, in: .common).autoconnect()
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Rectangle()
                 .fill(.ultraThinMaterial)
+                .overlay(alignment: .center) {
+                    VStack(spacing: 18) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 88, weight: .light))
+                            .foregroundStyle(Color.primary.opacity(0.10))
+                            .symbolRenderingMode(.hierarchical)
+
+                        VStack(spacing: 6) {
+                            Text("Try searching for")
+                                .font(.custom("Outfit-Medium", size: 13))
+                                .foregroundStyle(Color.primary.opacity(0.45))
+                                .tracking(1.0)
+                                .textCase(.uppercase)
+
+                            Text(suggestions[suggestionIndex])
+                                .font(.custom("Outfit-Black", size: 22))
+                                .foregroundStyle(Color.primary.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .padding(.horizontal, 28)
+                                .id(suggestionIndex)
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                                        removal: .move(edge: .top).combined(with: .opacity)
+                                    )
+                                )
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .accessibilityHidden(true)
+                    .padding(.bottom, 120)
+                }
+                .onReceive(cycleTimer) { _ in
+                    withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
+                        suggestionIndex = (suggestionIndex + 1) % suggestions.count
+                    }
+                }
+                .borderBeam(
+                    border: .primary,
+                    beam: [.green, .blue, .pink, .orange, .indigo],
+                    beamBlur: 18,
+                    cornerRadius: 0,
+                    isEnabled: true
+                )
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { dismissSearch() }
