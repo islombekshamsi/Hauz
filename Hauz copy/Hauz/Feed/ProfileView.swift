@@ -12,7 +12,7 @@ struct ProfileView: View {
     @State private var showAddToCollectionSheet = false
     @State private var activeSwipeID: UUID? = nil // Track which card is currently swiped open
     
-    private let feedService = FeedService()
+    @EnvironmentObject private var feedService: FeedService
     
     enum ViewMode {
         case card, grid
@@ -50,6 +50,11 @@ struct ProfileView: View {
         }
         .task {
             await loadLikedShoes()
+        }
+        .onAppear {
+            Task {
+                await loadLikedShoes()
+            }
         }
     }
     
