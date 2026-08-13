@@ -2,54 +2,85 @@ import SwiftUI
 import UIKit
 import Combine
 
-struct ShoeCard: Identifiable {
-    var id: String = UUID().uuidString
-    var price: Int
-    var brand: String
-    var name: String
-    var image: String
-    var link: String?
+enum CViewTab: String, CaseIterable, Identifiable {
+    case feed = "Feed"
+    case collections = "Collections"
+    case profile = "Profile"
+
+    var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .feed: return "hanger"
+        case .collections: return "square.stack"
+        case .profile: return "person.crop.circle"
+        }
+    }
+
+    var actionSymbol: String {
+        switch self {
+        case .feed: return "slider.horizontal.3"
+        case .collections: return "plus"
+        case .profile: return "gearshape"
+        }
+    }
 }
 
-let shoes: [ShoeCard] = [
-    ShoeCard(price: 155, brand: "Air Jordan", name: "Jordan 1 Retro High OG", image: "aj1_forpreview", link: "https://stockx.com/air-jordan-1-retro-high-og-chicago-reimagined-lost-and-found"),
-    ShoeCard(price: 289, brand: "Air Jordan", name: "Jordan 11 Retro", image: "aj11_forpreview", link: "https://stockx.com/air-jordan-11-retro-canyon-purple"),
-    ShoeCard(price: 100, brand: "ASICS", name: "ASICS Gel-1130", image: "asics_forpreview", link: "https://stockx.com/asics-gel-1130-black-pure-silver"),
-]
-
 struct CView: View {
+    @StateObject private var feedService = FeedService()
     @State private var activeIndex: Int = 0
     @State private var showSearch = false
     @State private var searchText = ""
+    @State private var activeTab: CViewTab = .feed
+    @State private var isLoading = false
+    @State private var isLoadingMore = false
+    @State private var hasAttemptedLoad = false
 
-    private var activeShoe: ShoeCard {
-        guard !shoes.isEmpty, shoes.indices.contains(activeIndex) else {
-            return shoes.first ?? ShoeCard(price: 0, brand: "", name: "", image: "", link: nil)
-        }
-        return shoes[activeIndex]
+    private var feed: [SneakerCard] { feedService.feed }
+
+    private var activeShoe: SneakerCard? {
+        guard !feed.isEmpty else { return nil }
+        let safeIndex = min(max(activeIndex, 0), feed.count - 1)
+        return feed[safeIndex]
     }
 
     var body: some View {
         ZStack {
             HeaderView {
                 VStack(spacing: 0) {
-                    AppleTVCarousel {
-                        ForEach(shoes) { shoe in
-                            Image(shoe.image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
+                    if feed.isEmpty {
+                        emptyOrLoadingView
+                            .frame(height: 400)
+                    } else {
+                        AppleTVCarousel {
+                            ForEach(feed) { shoe in
+                                shoeImage(for: shoe)
+                            }
+                        } scrollProgress: { progress in
+                            let newIndex = min(Int(progress.rounded()), max(feed.count - 1, 0))
+                            if newIndex != activeIndex {
+                                activeIndex = newIndex
+                                maybeLoadMore()
+                            }
                         }
-                    } scrollProgress: { progress in
-                        activeIndex = min(Int(progress.rounded()), max(shoes.count - 1, 0))
+                        .frame(height: 400)
                     }
-                    .frame(height: 400)
 
-                    BottomContent(activeShoe, onSearchTap: presentSearch)
-                        .padding(.top, 16)
-                        .padding(.horizontal, 20)
+                    if let shoe = activeShoe {
+                        BottomContent(shoe, onSearchTap: presentSearch)
+                            .padding(.top, 16)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 24)
+                    }
 
-                    Spacer(minLength: 24)
+                    Spacer(minLength: 0)
                 }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                CViewTabBar(activeTab: $activeTab)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
             }
 
             if showSearch {
@@ -62,6 +93,91 @@ struct CView: View {
             }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.85), value: showSearch)
+        .task {
+            if feedService.feed.isEmpty && !hasAttemptedLoad {
+                await reloadFeed()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var emptyOrLoadingView: some View {
+        ZStack {
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(Color("HauzFocus"))
+                    .scaleEffect(1.2)
+            } else if hasAttemptedLoad {
+                VStack(spacing: 14) {
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: 38, weight: .light))
+                        .foregroundStyle(Color("HauzFocus").opacity(0.6))
+                    VStack(spacing: 4) {
+                        Text("No shoes loaded")
+                            .font(.custom("Outfit-Black", size: 16))
+                            .foregroundStyle(Color("HauzBg"))
+                        Text("Make sure you're signed in,\nthen try reloading.")
+                            .font(.custom("Outfit-Medium", size: 13))
+                            .foregroundStyle(Color("HauzBg").opacity(0.55))
+                            .multilineTextAlignment(.center)
+                    }
+                    Button {
+                        Task { await reloadFeed() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text("Reload")
+                                .font(.custom("Outfit-SemiBold", size: 14))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color("HauzFocus")))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func reloadFeed() async {
+        guard !isLoading else { return }
+        isLoading = true
+        hasAttemptedLoad = true
+        await feedService.load()
+        isLoading = false
+    }
+
+    @ViewBuilder
+    private func shoeImage(for shoe: SneakerCard) -> some View {
+        if let url = shoe.imageURL {
+            AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.25))) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                case .failure:
+                    fallbackImage
+                case .empty:
+                    ProgressView()
+                        .tint(Color("HauzFocus"))
+                @unknown default:
+                    fallbackImage
+                }
+            }
+        } else {
+            fallbackImage
+        }
+    }
+
+    private var fallbackImage: some View {
+        Image(systemName: "photo")
+            .font(.system(size: 60, weight: .ultraLight))
+            .foregroundStyle(Color("HauzBg").opacity(0.3))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func presentSearch() {
@@ -71,8 +187,20 @@ struct CView: View {
         }
     }
 
+    private func maybeLoadMore() {
+        guard !isLoadingMore else { return }
+        // Trigger when user is within 3 cards of the end
+        if activeIndex >= feed.count - 3 {
+            Task {
+                isLoadingMore = true
+                await feedService.loadMore()
+                isLoadingMore = false
+            }
+        }
+    }
+
     @ViewBuilder
-    func BottomContent(_ shoe: ShoeCard, onSearchTap: @escaping () -> Void) -> some View {
+    func BottomContent(_ shoe: SneakerCard, onSearchTap: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 0) {
 
             Text(shoe.brand.uppercased())
@@ -85,12 +213,18 @@ struct CView: View {
                     Capsule().fill(Color("HauzFocus").opacity(0.12))
                 )
 
-            Text(shoe.price, format: .currency(code: "USD"))
-                .font(.custom("Outfit-Black", size: 50))
-                .foregroundStyle(Color("HauzBg"))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .padding(.top, 6)
+            Group {
+                if let price = shoe.price {
+                    Text(price, format: .currency(code: "USD"))
+                } else {
+                    Text("—")
+                }
+            }
+            .font(.custom("Outfit-Black", size: 50))
+            .foregroundStyle(Color("HauzBg"))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.top, 6)
 
             Text(shoe.name)
                 .font(.custom("Outfit-SemiBold", size: 15))
@@ -102,12 +236,12 @@ struct CView: View {
                 GlassButton(icon: "arrow.uturn.left") { }
 
                 GlassButton(icon: "cart", action: {
-                    if let link = shoe.link, let url = URL(string: link) {
+                    if let link = shoe.stockxLink, let url = URL(string: link) {
                         UIApplication.shared.open(url)
                     }
                 })
-                .opacity(shoe.link == nil ? 0.35 : 1)
-                .disabled(shoe.link == nil)
+                .opacity(shoe.stockxLink == nil ? 0.35 : 1)
+                .disabled(shoe.stockxLink == nil)
 
                 GlassButton(icon: "magnifyingglass", action: onSearchTap)
 
@@ -210,6 +344,44 @@ private struct CViewSearchOverlay: View {
             isPresented = false
             searchText = ""
         }
+    }
+}
+
+// MARK: - Tab bar (mirrors Feed/ContentView CustomTabBarView, 3 tabs)
+
+private struct CViewTabBar: View {
+    @Binding var activeTab: CViewTab
+
+    var body: some View {
+        GlassEffectContainer(spacing: 10) {
+            HStack(spacing: 10) {
+                GeometryReader {
+                    CViewCustomTabBar(size: $0.size, activeTab: $activeTab) { tab in
+                        VStack(spacing: 3) {
+                            Image(systemName: tab.symbol)
+                                .font(.title2)
+                        }
+                        .symbolVariant(.fill)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                }
+
+                ZStack {
+                    ForEach(CViewTab.allCases) { tab in
+                        if activeTab == tab {
+                            Image(systemName: tab.actionSymbol)
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(Color("HauzFocus"))
+                                .frame(width: 50, height: 50)
+                        }
+                    }
+                }
+                .glassEffect(.regular.interactive(), in: .circle)
+                .animation(.smooth(duration: 0.4, extraBounce: 0), value: activeTab)
+            }
+        }
+        .frame(height: 50)
     }
 }
 
