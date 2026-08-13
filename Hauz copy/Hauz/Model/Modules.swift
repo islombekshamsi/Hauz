@@ -81,3 +81,48 @@ struct UpdateProfileParams: Encodable {
         case swipedLeftIds = "swiped_left_ids"
     }
 }
+
+// MARK: - Collections Models
+struct Collection: Codable, Identifiable, Hashable {
+    let id: UUID
+    let userId: UUID
+    let name: String
+    let createdAt: Date
+    let updatedAt: Date
+    let coverImageUrl: String?
+    let itemCount: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case name
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case coverImageUrl = "cover_image_url"
+        case itemCount = "item_count"
+    }
+}
+
+struct CollectionItem: Codable, Identifiable {
+    let id: UUID
+    let collectionId: UUID
+    let sneakerId: UUID
+    let addedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case collectionId = "collection_id"
+        case sneakerId = "sneaker_id"
+        case addedAt = "added_at"
+    }
+}
+
+struct CreateCollectionParams: Encodable {
+    let userId: UUID
+    let name: String
+    
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case name
+    }
+}
