@@ -11,7 +11,8 @@ struct HauzFilterView: View{
                 VStack{
                     Text(option)
                         .frame(maxWidth: .infinity)
-                        .font(.custom("HooverVariable-Bold_Light", size: 16))
+                       .font(.custom("Outfit-Medium", size: 20))
+                        //.font(.system(size: 20, weight: .medium, design: .default))
                         .bold()
 
                     if selection == option{
@@ -20,16 +21,16 @@ struct HauzFilterView: View{
                             .matchedGeometryEffect(id: "selection", in: namespace)
                         }
                     }
-                .padding(.top, 8)
+                .padding(.top, 20)
                 .background(Color.black.opacity(0.001))
-                .foregroundStyle(selection == option ? Color("HauzFocus") : Color("HauzBg"))
+                .foregroundStyle(selection == option ? Color("HauzFocus") : Color("HauzLight"))
                 .onTapGesture {
                     selection = option
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .background(Color("HauzLight"))
+        .background(Color("HauzBg"))
         .animation(.smooth, value: selection)
     }
 }
