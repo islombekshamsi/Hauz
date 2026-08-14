@@ -21,7 +21,7 @@ private struct SearchResult: Decodable, Sendable {
 struct SemanticSearchConfig: Sendable {
     let supabaseURL: URL
     let supabaseAPIKey: String
-    // OpenAI key is NO LONGER HERE - it's secure in Edge Function! 🔒
+    
 }
 
 struct SemanticSearchResponse: Sendable {
