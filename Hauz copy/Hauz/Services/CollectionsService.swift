@@ -116,7 +116,7 @@ class CollectionsService {
             .insert(newItem)
             .execute()
         
-        print("✅ Added sneaker to collection")
+        print("Added sneaker to collection")
     }
     
     // MARK: - Remove Sneaker from Collection
@@ -129,7 +129,7 @@ class CollectionsService {
             .eq("sneaker_id", value: sneakerId.uuidString)
             .execute()
         
-        print("✅ Removed sneaker from collection")
+        print("Removed sneaker from collection")
     }
     
     // MARK: - Check if Sneaker is in Collection
@@ -171,7 +171,7 @@ class CollectionsService {
             .eq("id", value: collectionId.uuidString)
             .execute()
         
-        print("✅ Deleted collection")
+        print("Deleted collection")
     }
     
     // MARK: - Rename Collection
@@ -189,7 +189,7 @@ class CollectionsService {
             .eq("id", value: collectionId.uuidString)
             .execute()
         
-        print("✅ Renamed collection to: \(newName)")
+        print("Renamed collection to: \(newName)")
     }
 }
 
