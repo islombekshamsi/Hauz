@@ -87,11 +87,6 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
                 .offset(x: offsetX)
                 .offset(x: bounceOffset)
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    if offsetX != 0 {
-                        reset()
-                    }
-                }
                 .highPriorityGesture(
                     DragGesture()
                         .onChanged { value in
@@ -101,6 +96,14 @@ fileprivate struct CustomSwipeActionModifier: ViewModifier {
                             gestureDidEnded(translation: value.translation, velocity: value.velocity)
                         }
                 )
+        }
+        .overlay {
+            if offsetX != 0 {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .padding(.trailing, config.deleteDiameter + config.trailingPadding + config.detachedGap)
+                    .onTapGesture { reset() }
+            }
         }
         .background(
             GeometryReader { proxy in
