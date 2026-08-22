@@ -5,7 +5,7 @@ import PostgREST
 
 
 struct GetInView: View {
-    @State private var isLogged = false
+    @State private var isLogged = false // change
     @State private var hasProfile = false
     
     // Accept initial states from SplashScreen to prevent flash
